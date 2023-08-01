@@ -38,12 +38,15 @@ class TabularModelPredictions:
     Class that allows to query offline predictions.
     """
 
-    def predict(self, dataset: str, fold: int, splits: List[str] = None, models: List[str] = None) -> List[np.array]:
+    def predict(self, dataset: str, fold: int, splits: List[str] = None, models: List[str] = None,
+                force_1d: bool = False) -> List[np.array]:
         """
         :param dataset:
         :param fold:
         :param splits: split to consider values must be in 'val' or 'test'
         :param models: list of models to be evaluated, by default uses all models available
+        :param force_1d: If True, prediction probabilities for are returned as 1 dimensional vector
+        for the positive class. This is only appropriate for binary classification.
         :return: for each split, a tensor with shape (num_models, num_points) for regression and
         (num_models, num_points, num_classes) for classification corresponding the predictions of the model.
         """
@@ -52,7 +55,22 @@ class TabularModelPredictions:
         for split in splits:
             assert split in self.splits
         assert models is None or len(models) > 0
-        return self._predict(dataset=dataset, fold=fold, splits=splits, models=models)
+
+        preds = self._predict(dataset=dataset, fold=fold, splits=splits, models=models)
+
+        if force_1d:
+            # Note: as we do not know at this point if it is a binary classification problem, we have to
+            # enable this in more general by forcing 1d always if true. If we know that the third dimension can only
+            # equal to 2 for binary, or we have a parameter telling us the problem type here,
+            # then we could make this a more general purpose code.
+
+            tmp_preds = []
+            for pred in preds:
+                if len(pred.shape) == 3:
+                    tmp_preds.append(pred[:, :, 1])
+            preds = tmp_preds
+
+        return preds
 
     def predict_dataset(self, dataset: str) -> DatasetPredictionsDict:
         """

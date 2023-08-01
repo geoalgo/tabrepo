@@ -20,6 +20,7 @@ class EvaluationRepository(SaveLoadMixin):
     Simple Repository class that implements core functionality related to
     fetching model predictions, available datasets, folds, etc.
     """
+
     def __init__(
             self,
             zeroshot_context: ZeroshotSimulatorContext,
@@ -195,6 +196,70 @@ class EvaluationRepository(SaveLoadMixin):
         metadata = self._df_metadata[self._df_metadata.tid == tid]
         return dict(zip(metadata.columns, metadata.values[0]))
 
+    @staticmethod
+    def get_data(tid: int, fold: int) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Get Data from OpenML following the AutoML Benchmark.
+
+        Returns raw data associated to the OpenML task with `tid` whereby the raw data is split
+        according to the `fold` index.
+
+        :param tid: task id of a task on OpenML
+        :param fold: fold index of a fold associated to the OpenML task.
+        :return: train_data, test_data
+        """
+        # Delayed import for now as this is the only openml usage in this file
+        import openml
+
+        # Get Task and dataset from OpenML and return split data
+        oml_task = openml.tasks.get_task(tid, download_splits=True, download_data=True,
+                                         download_qualities=False, download_features_meta_data=False)
+
+        train_ind, test_ind = oml_task.get_train_test_split_indices(fold)
+        X, *_ = oml_task.get_dataset().get_data(dataset_format='dataframe')
+
+        return X.iloc[train_ind, :], X.iloc[test_ind, :]
+
+    def preprocess_data(self, tid: int, fold: int, train_data: pd.DataFrame, test_data: pd.DataFrame) \
+            -> [pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]:
+        """
+        Preprocesses the given data for the given task and fold.
+
+        The preprocessing follows the default preprocessing of AutoGluon.
+
+        :param tid: task id of a task on OpenML
+        :param fold: fold index of a fold associated to the OpenML task.
+        :param train_data: the train data for the tid and fold
+        :param test_data: the test data for the tid and fold
+        :return: X_train, y_train, X_test, y_test
+        """
+        # Delayed import for now as this is the only autogluon usage in this file
+        from autogluon.features.generators import AutoMLPipelineFeatureGenerator
+
+        task_ground_truth_metadata: dict = self._ground_truth[tid][fold]
+        label = task_ground_truth_metadata['label']
+
+        # Verify repo and data correct split
+        y_train = task_ground_truth_metadata['y_val']  # technically y_val but for the sake of this y_train
+        y_test = task_ground_truth_metadata['y_test']
+        assert bool(np.setdiff1d(y_train.index.to_numpy(), train_data.index.to_numpy())) is False
+        assert bool(np.setdiff1d(y_test.index.to_numpy(), test_data.index.to_numpy())) is False
+
+        # Preprocess like AutoGluon
+        preprocessor = AutoMLPipelineFeatureGenerator()
+        X_train, y_train = train_data.drop(labels=[label], axis=1), train_data[label]
+        X_test, y_test = test_data.drop(labels=[label], axis=1), test_data[label]
+        X_train = preprocessor.fit_transform(X_train, y_train)
+        X_test = preprocessor.transform(X_test)
+
+        label_map = {k: v for k, v in zip(task_ground_truth_metadata['ordered_class_labels'],
+                                          task_ground_truth_metadata['ordered_class_labels_transformed'])}
+
+        y_train = y_train.apply(lambda x: label_map[x])
+        y_test = y_test.apply(lambda x: label_map[x])
+
+        return X_train, y_train, X_test, y_test
+
     @property
     def folds(self) -> List[int]:
         return self._zeroshot_context.folds
@@ -212,17 +277,22 @@ class EvaluationRepository(SaveLoadMixin):
     def task_name(tid: int, fold: int) -> str:
         return f"{tid}_{fold}"
 
+    @staticmethod
+    def task_name_to_tid_and_fold(task_name: str) -> Tuple[int, int]:
+        tid, fold = task_name.split("_")
+        return tid, fold
+
     def task_name_from_dataset(self, dataset_name: str, fold: int) -> str:
         return self.task_name(tid=self.dataset_to_tid(dataset_name), fold=fold)
 
     def evaluate_ensemble(
-        self,
-        tids: List[int],
-        config_names: List[str],
-        ensemble_size: int,
-        rank: bool = True,
-        folds: Optional[List[int]] = None,
-        backend: str = "ray",
+            self,
+            tids: List[int],
+            config_names: List[str],
+            ensemble_size: int,
+            rank: bool = True,
+            folds: Optional[List[int]] = None,
+            backend: str = "ray",
     ) -> Tuple[np.array, Dict[str, np.array]]:
         """
         :param tids: list of dataset tids to compute errors on.
@@ -257,7 +327,7 @@ class EvaluationRepository(SaveLoadMixin):
             out = dict_errors
 
         out_numpy = np.array([[
-                out[self.task_name(tid=tid, fold=fold)
+            out[self.task_name(tid=tid, fold=fold)
             ] for fold in folds
         ] for tid in tids])
 
@@ -311,6 +381,7 @@ def load(version: str = None, lazy_format=True) -> EvaluationRepository:
 # TODO: git shelve ADD BACK
 if __name__ == '__main__':
     from autogluon_zeroshot.contexts.context_artificial import load_context_artificial
+
     with catchtime("loading repo and evaluating one ensemble config"):
         dataset_name = "abalone"
         config_name = "NeuralNetFastAI_r1"
@@ -328,10 +399,12 @@ if __name__ == '__main__':
 
         print(tid)  # 360945
         print(list(repo.list_models_available(tid))[:3])  # ['LightGBM_r181', 'CatBoost_r81', 'ExtraTrees_r33']
-        print(repo.eval_metrics(tid=tid, config_names=[config_name], fold=2))  # {'time_train_s': 0.4008138179779053, 'metric_error': 25825.49788, ...
+        print(repo.eval_metrics(tid=tid, config_names=[config_name],
+                                fold=2))  # {'time_train_s': 0.4008138179779053, 'metric_error': 25825.49788, ...
         print(repo.val_predictions(tid=tid, config_name=config_name, fold=2).shape)
         print(repo.test_predictions(tid=tid, config_name=config_name, fold=2).shape)
         print(repo.dataset_metadata(tid=tid))  # {'tid': 360945, 'ttid': 'TaskType.SUPERVISED_REGRESSION
-        print(repo.evaluate_ensemble(tids=[tid], config_names=[config_name, config_name], ensemble_size=5, backend="native"))  # [[7.20435338 7.04106921 7.11815431 7.08556309 7.18165966 7.1394064  7.03340405 7.11273415 7.07614767 7.21791022]]
+        print(repo.evaluate_ensemble(tids=[tid], config_names=[config_name, config_name], ensemble_size=5,
+                                     backend="native"))  # [[7.20435338 7.04106921 7.11815431 7.08556309 7.18165966 7.1394064  7.03340405 7.11273415 7.07614767 7.21791022]]
         print(repo.evaluate_ensemble(tids=[tid], config_names=[config_name, config_name],
                                      ensemble_size=5, folds=[2], backend="native"))  # [[7.11815431]]
