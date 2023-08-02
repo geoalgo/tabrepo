@@ -185,10 +185,17 @@ class LGBModel(AbstractModel):
 
         # Preprocess
 
-        # Correct way
-        feature_metadata = self._feature_metadata
-        stack_feature_names = feature_metadata.get_features(required_special_types=['stack'])
-        # TODO; correct monotonic constraints here add remove param to be correct
+        if train_params["params"].pop("monotone_constraints_for_stack_features", False):
+            # Correct way:
+            #  - implement based on feature metadata TODO
+            #  - enable an option to define the internal feature metadata to allow for the simulation of l2
+            # feature_metadata = self._feature_metadata
+            # stack_feature_names = feature_metadata.get_features(required_special_types=['stack'])
+
+            # Dirty workaround for simulation testing:
+            name_prefix = "L1/OOF/"
+            train_params["params"]["monotone_constraints"] = \
+                [1 if col.startswith(name_prefix) else 0 for col in X.columns]
 
         # Train LightGBM model:
         from lightgbm.basic import LightGBMError

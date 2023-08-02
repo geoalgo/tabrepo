@@ -14,6 +14,9 @@ from autogluon_zeroshot.utils.cache import SaveLoadMixin
 from autogluon_zeroshot.utils import catchtime
 from autogluon_zeroshot import repository
 
+from autogluon.features.generators import AutoMLPipelineFeatureGenerator
+from autogluon.common.features.feature_metadata import FeatureMetadata
+
 
 class EvaluationRepository(SaveLoadMixin):
     """
@@ -221,7 +224,7 @@ class EvaluationRepository(SaveLoadMixin):
         return X.iloc[train_ind, :], X.iloc[test_ind, :]
 
     def preprocess_data(self, tid: int, fold: int, train_data: pd.DataFrame, test_data: pd.DataFrame) \
-            -> [pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]:
+            -> [pd.DataFrame, pd.Series, pd.DataFrame, pd.Series, FeatureMetadata]:
         """
         Preprocesses the given data for the given task and fold.
 
@@ -233,9 +236,6 @@ class EvaluationRepository(SaveLoadMixin):
         :param test_data: the test data for the tid and fold
         :return: X_train, y_train, X_test, y_test
         """
-        # Delayed import for now as this is the only autogluon usage in this file
-        from autogluon.features.generators import AutoMLPipelineFeatureGenerator
-
         task_ground_truth_metadata: dict = self._ground_truth[tid][fold]
         label = task_ground_truth_metadata['label']
 
@@ -258,7 +258,7 @@ class EvaluationRepository(SaveLoadMixin):
         y_train = y_train.apply(lambda x: label_map[x])
         y_test = y_test.apply(lambda x: label_map[x])
 
-        return X_train, y_train, X_test, y_test
+        return X_train, y_train, X_test, y_test, preprocessor.feature_metadata
 
     @property
     def folds(self) -> List[int]:
