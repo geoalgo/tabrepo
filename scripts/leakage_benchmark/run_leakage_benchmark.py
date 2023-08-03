@@ -17,7 +17,8 @@ def _leakage_analysis(repo, lbc, dataset, fold):
         print(l1_results)
 
     leak_results = autogluon_l2_runner(lbc.l2_models, l2_X_train, y_train, l2_X_test, y_test,
-                                       eval_metric, oof_col_names, l1_feature_metadata)
+                                       eval_metric, oof_col_names,
+                                       l1_feature_metadata, problem_type=eval_metric.problem_type)
     with pd.option_context("display.max_rows", None, "display.max_columns", None, "display.width", 1000):
         print(leak_results)
 

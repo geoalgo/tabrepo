@@ -35,6 +35,7 @@ def obtain_input_data_for_l2(repo: EvaluationRepository, l1_models: List[str], d
     problem_type = task_ground_truth_metadata['problem_type']
     metric_name = task_ground_truth_metadata['eval_metric']
     eval_metric = get_metric(metric=metric_name, problem_type=problem_type)
+    eval_metric.problem_type = problem_type
 
     # - Obtain X and y
     # - Obtain X
@@ -93,8 +94,9 @@ def _sub_sample(l2_train_data, l2_test_data, sample=20000, sample_test=10000):
     return l2_train_data, l2_test_data
 
 
-def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test, eval_metric: Scorer, oof_col_names: List[str],
-                        l1_feature_metadata: FeatureMetadata, sub_sample_data: bool = False) -> pd.DataFrame:
+def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test, eval_metric: Scorer,
+                        oof_col_names: List[str], l1_feature_metadata: FeatureMetadata,
+                        sub_sample_data: bool = False, problem_type: str | None = None) -> pd.DataFrame:
     print("Start running AutoGluon on L2 data.")
     label = "class"
     l2_feature_metadata = _get_l2_feature_metadata(l2_X_train, l2_y_train, oof_col_names, l1_feature_metadata)
@@ -108,7 +110,12 @@ def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test,
     if sub_sample_data:
         l2_train_data, l2_test_data = _sub_sample(l2_train_data, l2_test_data)
 
-    predictor = TabularPredictor(eval_metric=eval_metric.name, label=label, verbosity=1).fit(
+    # - For debugging
+    # import ray
+    # ray.init(local_mode=True)
+
+    predictor = TabularPredictor(eval_metric=eval_metric.name, label=label, verbosity=1, problem_type=problem_type,
+                                 learner_kwargs=dict(random_state=1)).fit(
         train_data=l2_train_data,
         hyperparameters=l2_models,
         fit_weighted_ensemble=False,

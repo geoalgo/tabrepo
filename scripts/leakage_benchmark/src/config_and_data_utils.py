@@ -22,8 +22,6 @@ class LeakageBenchmarkConfig:
     @property
     def default_l2(self):
         return {
-            'RF': [{'criterion': 'gini'}],
-            'CAT': [{}],
             'GBM':
                 [
                     {},
