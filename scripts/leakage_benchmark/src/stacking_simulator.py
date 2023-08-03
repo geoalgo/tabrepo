@@ -11,6 +11,8 @@ from autogluon.tabular import TabularPredictor
 from autogluon.features.generators import IdentityFeatureGenerator, AutoMLPipelineFeatureGenerator
 from autogluon.common.features.feature_metadata import FeatureMetadata
 
+from scripts.leakage_benchmark.src.config_and_data_utils import L1_PREFIX
+
 
 def obtain_input_data_for_l2(repo: EvaluationRepository, l1_models: List[str], dataset: str, fold: int) \
         -> Tuple[pd.DataFrame, np.array, pd.DataFrame, np.array, Scorer, List[str], pd.DataFrame, FeatureMetadata]:
@@ -59,7 +61,7 @@ def obtain_input_data_for_l2(repo: EvaluationRepository, l1_models: List[str], d
 
         pred_val_m = pred_val[i]
         pred_test_m = pred_test[i]
-        col_name = f'L1/OOF/{m}'
+        col_name = f'{L1_PREFIX}{m}'
 
         l2_X_train[col_name] = pred_val_m
         l2_X_test[col_name] = pred_test_m
@@ -78,8 +80,10 @@ def _get_l2_feature_metadata(l2_X_train, l2_y_train, oof_col_names, l1_feature_m
     prepr = AutoMLPipelineFeatureGenerator()
     prepr.fit_transform(l2_X_train[oof_col_names], l2_y_train)
 
-    # TODO: could add stacking as special tpye group here if we need it later. But stick to this for now.
     l2_feature_metadata = l1_feature_metadata.join_metadata(prepr.feature_metadata)
+
+    # Add stack metadata
+    l2_feature_metadata.type_group_map_special['stack'] = oof_col_names
 
     return l2_feature_metadata
 
@@ -110,11 +114,7 @@ def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test,
     if sub_sample_data:
         l2_train_data, l2_test_data = _sub_sample(l2_train_data, l2_test_data)
 
-    # - For debugging
-    # import ray
-    # ray.init(local_mode=True)
-
-    predictor = TabularPredictor(eval_metric=eval_metric.name, label=label, verbosity=1, problem_type=problem_type,
+    predictor = TabularPredictor(eval_metric=eval_metric.name, label=label, verbosity=0, problem_type=problem_type,
                                  learner_kwargs=dict(random_state=1)).fit(
         train_data=l2_train_data,
         hyperparameters=l2_models,
@@ -128,5 +128,5 @@ def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test,
 
     leaderboard_leak = predictor.leaderboard(l2_test_data, silent=True)[['model', 'score_test', 'score_val']]
     leaderboard_leak['model'] = leaderboard_leak['model'].apply(lambda x: x.replace('L1', 'L2'))
-
+    
     return leaderboard_leak

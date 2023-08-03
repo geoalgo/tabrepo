@@ -1,28 +1,34 @@
-from __future__ import annotations
-
 from autogluon_zeroshot.utils.cache import cache_function
 from autogluon_zeroshot.repository import EvaluationRepository, EvaluationRepositoryZeroshot
-from scripts.leakage_benchmark.src.config_and_data_utils import LeakageBenchmarkConfig
+from scripts.leakage_benchmark.src.config_and_data_utils import LeakageBenchmarkConfig, LeakageBenchmarkFoldResults
 
 from scripts.leakage_benchmark.src.stacking_simulator import obtain_input_data_for_l2, autogluon_l2_runner
-
-import pandas as pd
 
 
 def _leakage_analysis(repo, lbc, dataset, fold):
     print(f'Leakage Analysis for {dataset}, fold {fold}...')
+    # L1
     l2_X_train, y_train, l2_X_test, y_test, eval_metric, oof_col_names, l1_results, l1_feature_metadata = \
         obtain_input_data_for_l2(repo, lbc.l1_models, dataset, fold)
-    with pd.option_context("display.max_rows", None, "display.max_columns", None, "display.width", 1000):
-        print(l1_results)
+    LeakageBenchmarkFoldResults.print_leaderboard(l1_results)
 
-    leak_results = autogluon_l2_runner(lbc.l2_models, l2_X_train, y_train, l2_X_test, y_test,
-                                       eval_metric, oof_col_names,
-                                       l1_feature_metadata, problem_type=eval_metric.problem_type)
-    with pd.option_context("display.max_rows", None, "display.max_columns", None, "display.width", 1000):
-        print(leak_results)
+    # L2
+    l2_results = autogluon_l2_runner(lbc.l2_models, l2_X_train, y_train, l2_X_test, y_test,
+                                     eval_metric, oof_col_names, l1_feature_metadata,
+                                     problem_type=eval_metric.problem_type)
+    LeakageBenchmarkFoldResults.print_leaderboard(l2_results)
+
+    results = LeakageBenchmarkFoldResults(
+        fold=fold,
+        dataset=dataset,
+        l1_leaderboard_df=l1_results,
+        l2_leaderboard_df=l2_results,
+
+    )
 
     print('... done.')
+
+    return results
 
 
 def analyze_starter(repo: EvaluationRepositoryZeroshot, lbc: LeakageBenchmarkConfig):
@@ -49,6 +55,6 @@ if __name__ == '__main__':
     ).to_zeroshot()
     init_lbc = LeakageBenchmarkConfig(
         l1_models=['RandomForest_c1_BAG_L1', 'ExtraTrees_c1_BAG_L1', 'XGBoost_c1_BAG_L1', 'CatBoost_c1_BAG_L1'],
-        datasets=['airlines']
+        datasets=['airlines']  # airlines,'wine_quality', 'balance_scale', 'adult'
     )
     analyze_starter(repo=repository, lbc=init_lbc)
