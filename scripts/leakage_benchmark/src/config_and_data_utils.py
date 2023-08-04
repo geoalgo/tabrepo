@@ -30,7 +30,16 @@ class LeakageBenchmarkConfig:
                     {},
                     {
                         'monotone_constraints_for_stack_features': True,
-                        'monotone_constraints_method': 'basic', 'ag_args': {'name_suffix': '_monotonic'}
+                        'monotone_constraints_method': 'advanced', 'ag_args': {'name_suffix': '_monotonic'},
+                        'monotone_penalty': 0,
+                    },
+                    {'drop_duplicates': True, 'ag_args': {'name_suffix': '_dd'}},
+                    {
+                        'drop_duplicates': True,
+                        'monotone_constraints_for_stack_features': True,
+                        'monotone_constraints_method': 'advanced', 'ag_args': {'name_suffix': '_monotonic_dd'},
+                        'monotone_penalty': 0,
+
                     },
                 ]
         }

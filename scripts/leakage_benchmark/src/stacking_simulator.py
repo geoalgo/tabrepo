@@ -43,7 +43,7 @@ def obtain_input_data_for_l2(repo: EvaluationRepository, l1_models: List[str], d
     # - Obtain X
     train_data, test_data = repo.get_data(tid, fold)
     l2_X_train, l2_y_train, l2_X_test, l2_y_test, l1_feature_metadata \
-        = repo.preprocess_data(tid, fold, train_data, test_data)
+        = repo.preprocess_data(tid, fold, train_data, test_data, reset_index=True)
 
     # Previous code had `y_test.fillna(-1)` in code. Not sure why, hence see where this happens with the assert.
     assert l2_y_test.hasnans is False
@@ -71,7 +71,8 @@ def obtain_input_data_for_l2(repo: EvaluationRepository, l1_models: List[str], d
     leaderboard = zsc.df_results_by_dataset_vs_automl.loc[(zsc.df_results_by_dataset_vs_automl['dataset'] == task) & (
         zsc.df_results_by_dataset_vs_automl['framework'].isin(l1_models)), ['framework', 'metric_error', 'score_val']]
     leaderboard['metric_error'] = leaderboard['metric_error'].apply(lambda x: eval_metric.optimum - x)
-    leaderboard = leaderboard.rename(columns={'framework': 'model', 'metric_error': 'score_test'})
+    leaderboard = leaderboard.rename(columns={'framework': 'model', 'metric_error': 'score_test'}).reset_index(
+        drop=True)
 
     return l2_X_train, l2_y_train, l2_X_test, l2_y_test, eval_metric, oof_col_names, leaderboard, l1_feature_metadata
 
@@ -98,12 +99,61 @@ def _sub_sample(l2_train_data, l2_test_data, sample=20000, sample_test=10000):
     return l2_train_data, l2_test_data
 
 
+def _compute_nearest_neighbor_distance(X_train, y_train, X_test):
+    # Compute nearest neighbor distance
+    from autogluon.core.utils.utils import CVSplitter
+    from sklearn.neighbors import NearestNeighbors
+    from sklearn.compose import ColumnTransformer
+    from sklearn.compose import make_column_selector
+    from sklearn.preprocessing import OrdinalEncoder, StandardScaler
+    from sklearn.impute import SimpleImputer
+    from sklearn.pipeline import Pipeline
+
+    preprocessor = Pipeline(
+        [
+            ('fix', ColumnTransformer(transformers=[
+                ("num", SimpleImputer(strategy="constant", fill_value=-1),
+                 make_column_selector(dtype_exclude="object"),),
+                ("cat",
+                 Pipeline(steps=[("encoder", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1),),
+                                 ("imputer", SimpleImputer(strategy="constant", fill_value=-1)),
+                                 ]), make_column_selector(dtype_include="object"),), ], sparse_threshold=0, )),
+            ('scale', StandardScaler())
+        ]
+    )
+    X_train = X_train.reset_index(drop=True)
+    cv = CVSplitter(n_splits=8, n_repeats=1, stratified=True, random_state=1)
+
+    oof_distance = np.full_like(y_train, np.nan)
+    test_distances = []
+
+    for train_index, test_index in cv.split(X_train, y_train):
+        X_train_cv, X_test_cv = X_train.iloc[train_index], X_train.iloc[test_index]
+
+        X_train_cv = preprocessor.fit_transform(X_train_cv)
+        X_test_cv = preprocessor.transform(X_test_cv)
+        nn_m = NearestNeighbors(n_neighbors=1)
+        nn_m.fit(X_train_cv)
+        oof_distance[test_index] = nn_m.kneighbors(X_test_cv)[0].reshape(-1)
+
+        test_distances.append(nn_m.kneighbors(preprocessor.transform(X_test))[0].reshape(-1))
+
+    print("n+duplicates:", sum(pd.DataFrame(preprocessor.fit_transform(X_train)).duplicated()) / len(X_train))
+    return oof_distance, np.mean(np.array(test_distances), axis=0)
+
+
 def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test, eval_metric: Scorer,
                         oof_col_names: List[str], l1_feature_metadata: FeatureMetadata,
                         sub_sample_data: bool = False, problem_type: str | None = None) -> pd.DataFrame:
     print("Start running AutoGluon on L2 data.")
     label = "class"
     l2_feature_metadata = _get_l2_feature_metadata(l2_X_train, l2_y_train, oof_col_names, l1_feature_metadata)
+
+    # TODO: test performance of something like this as additional feature even without the leak
+    #   Following wolpert, the idea is that l2 models learn from knowing the distance to the nearest neighbor
+    #   Downside is that it is quite expensive I guess. (add at fit time not here)
+    # _compute_nearest_neighbor_distance(l2_X_train.drop(columns=oof_col_names), l2_y_train,
+    #                                    l2_X_test.drop(columns=oof_col_names))
 
     # Run AutoGluon
     l2_train_data = l2_X_train
@@ -113,6 +163,9 @@ def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test,
 
     if sub_sample_data:
         l2_train_data, l2_test_data = _sub_sample(l2_train_data, l2_test_data)
+
+    # import ray
+    # ray.init(local_mode=True)
 
     predictor = TabularPredictor(eval_metric=eval_metric.name, label=label, verbosity=0, problem_type=problem_type,
                                  learner_kwargs=dict(random_state=1)).fit(
@@ -128,5 +181,5 @@ def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test,
 
     leaderboard_leak = predictor.leaderboard(l2_test_data, silent=True)[['model', 'score_test', 'score_val']]
     leaderboard_leak['model'] = leaderboard_leak['model'].apply(lambda x: x.replace('L1', 'L2'))
-    
+
     return leaderboard_leak

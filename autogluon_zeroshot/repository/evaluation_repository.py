@@ -223,7 +223,8 @@ class EvaluationRepository(SaveLoadMixin):
 
         return X.iloc[train_ind, :], X.iloc[test_ind, :]
 
-    def preprocess_data(self, tid: int, fold: int, train_data: pd.DataFrame, test_data: pd.DataFrame) \
+    def preprocess_data(self, tid: int, fold: int, train_data: pd.DataFrame, test_data: pd.DataFrame,
+                        reset_index: bool = False) \
             -> [pd.DataFrame, pd.Series, pd.DataFrame, pd.Series, FeatureMetadata]:
         """
         Preprocesses the given data for the given task and fold.
@@ -234,6 +235,7 @@ class EvaluationRepository(SaveLoadMixin):
         :param fold: fold index of a fold associated to the OpenML task.
         :param train_data: the train data for the tid and fold
         :param test_data: the test data for the tid and fold
+        :param reset_index: if True, reset index such that both subset have an index starting from 0.
         :return: X_train, y_train, X_test, y_test
         """
         task_ground_truth_metadata: dict = self._ground_truth[tid][fold]
@@ -257,6 +259,12 @@ class EvaluationRepository(SaveLoadMixin):
 
         y_train = y_train.apply(lambda x: label_map[x])
         y_test = y_test.apply(lambda x: label_map[x])
+
+        if reset_index:
+            X_train = X_train.reset_index(drop=True)
+            X_test = X_test.reset_index(drop=True)
+            y_train = y_train.reset_index(drop=True)
+            y_test = y_test.reset_index(drop=True)
 
         return X_train, y_train, X_test, y_test, preprocessor.feature_metadata
 
