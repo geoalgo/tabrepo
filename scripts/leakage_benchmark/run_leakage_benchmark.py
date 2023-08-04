@@ -13,9 +13,9 @@ def _leakage_analysis(repo, lbc, dataset, fold):
     LeakageBenchmarkFoldResults.print_leaderboard(l1_results)
 
     # L2
-    l2_results = autogluon_l2_runner(lbc.l2_models, l2_X_train, y_train, l2_X_test, y_test,
-                                     eval_metric, oof_col_names, l1_feature_metadata,
-                                     problem_type=eval_metric.problem_type)
+    l2_results, custom_meta_data = autogluon_l2_runner(lbc.l2_models, l2_X_train, y_train, l2_X_test, y_test,
+                                                       eval_metric, oof_col_names, l1_feature_metadata,
+                                                       problem_type=eval_metric.problem_type)
     LeakageBenchmarkFoldResults.print_leaderboard(l2_results)
 
     results = LeakageBenchmarkFoldResults(
@@ -23,9 +23,9 @@ def _leakage_analysis(repo, lbc, dataset, fold):
         dataset=dataset,
         l1_leaderboard_df=l1_results,
         l2_leaderboard_df=l2_results,
-
+        custom_meta_data=custom_meta_data
     )
-
+    print(results.custom_meta_data)
     print('... done.')
 
     return results
@@ -54,7 +54,7 @@ if __name__ == '__main__':
         cache_name="repo_micro",
     ).to_zeroshot()
     init_lbc = LeakageBenchmarkConfig(
-        l1_models=['RandomForest_c1_BAG_L1', 'ExtraTrees_c1_BAG_L1', 'XGBoost_c1_BAG_L1', 'CatBoost_c1_BAG_L1'],
+        l1_models=None,
         datasets=['airlines']  # airlines,'wine_quality', 'balance_scale', 'adult'
     )
     analyze_starter(repo=repository, lbc=init_lbc)

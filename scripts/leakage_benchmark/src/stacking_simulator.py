@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import numpy as np
 
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
 from autogluon.core.metrics import get_metric, Scorer
 from autogluon_zeroshot.repository import EvaluationRepository
@@ -144,7 +144,7 @@ def _compute_nearest_neighbor_distance(X_train, y_train, X_test):
 
 def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test, eval_metric: Scorer,
                         oof_col_names: List[str], l1_feature_metadata: FeatureMetadata,
-                        sub_sample_data: bool = False, problem_type: str | None = None) -> pd.DataFrame:
+                        sub_sample_data: bool = False, problem_type: str | None = None) -> Tuple[pd.DataFrame, Dict]:
     print("Start running AutoGluon on L2 data.")
     label = "class"
     l2_feature_metadata = _get_l2_feature_metadata(l2_X_train, l2_y_train, oof_col_names, l1_feature_metadata)
@@ -155,11 +155,27 @@ def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test,
     # _compute_nearest_neighbor_distance(l2_X_train.drop(columns=oof_col_names), l2_y_train,
     #                                    l2_X_test.drop(columns=oof_col_names))
 
-    # Run AutoGluon
+    # Build data
     l2_train_data = l2_X_train
     l2_train_data[label] = l2_y_train
     l2_test_data = l2_X_test
     l2_test_data[label] = l2_y_test
+
+    # Compute metadata
+    f_dup = oof_col_names + [label]
+    f_l_dup = oof_col_names
+    custom_meta_data = dict(
+        train_l2_duplciates=sum(l2_train_data.duplicated()) / len(l2_train_data),
+        train_feature_duplciates=sum(l2_train_data.drop(columns=f_dup).duplicated()) / len(l2_train_data),
+        train_feature_label_duplicates=sum(l2_train_data.drop(columns=f_l_dup).duplicated()) / len(l2_train_data),
+        test_l2_duplicates=sum(l2_test_data.duplicated()) / len(l2_test_data),
+        test_feature_duplciates=sum(l2_test_data.drop(columns=f_dup).duplicated()) / len(l2_test_data),
+        test_feature_label_duplicates=sum(l2_test_data.drop(columns=f_l_dup).duplicated()) / len(l2_test_data),
+    )
+
+    # TODO (for train and test)
+    #  - unique values of OOF per col
+    #  - optimal threshold per col and avg
 
     if sub_sample_data:
         l2_train_data, l2_test_data = _sub_sample(l2_train_data, l2_test_data)
@@ -167,6 +183,7 @@ def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test,
     # import ray
     # ray.init(local_mode=True)
 
+    # Run AutoGluon
     predictor = TabularPredictor(eval_metric=eval_metric.name, label=label, verbosity=0, problem_type=problem_type,
                                  learner_kwargs=dict(random_state=1)).fit(
         train_data=l2_train_data,
@@ -180,6 +197,6 @@ def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test,
     )
 
     leaderboard_leak = predictor.leaderboard(l2_test_data, silent=True)[['model', 'score_test', 'score_val']]
-    leaderboard_leak['model'] = leaderboard_leak['model'].apply(lambda x: x.replace('L1', 'L2'))
+    leaderboard_leak['model'] = leaderboard_leak['model'].apply(lambda x: x.replace('L1', 'L1.5'))
 
-    return leaderboard_leak
+    return leaderboard_leak, custom_meta_data

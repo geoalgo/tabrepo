@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Dict
+from typing import List, Dict, Any
 
 import pandas as pd
 
@@ -25,9 +25,20 @@ class LeakageBenchmarkConfig:
     @property
     def default_l2(self):
         return {
+            'KNN': [
+                {},
+                {'drop_duplicates': True, 'ag_args': {'name_suffix': '_dd'}},
+
+            ],
+            'RF':
+                [
+                    {},
+                    {'drop_duplicates': True, 'ag_args': {'name_suffix': '_dd'}},
+                ],
             'GBM':
                 [
                     {},
+                    {'random_noise_for_stack': True, 'ag_args': {'name_suffix': '_noise_dummy'}},
                     {
                         'monotone_constraints_for_stack_features': True,
                         'monotone_constraints_method': 'advanced', 'ag_args': {'name_suffix': '_monotonic'},
@@ -64,6 +75,7 @@ class LeakageBenchmarkFoldResults:
     dataset: str
     l1_leaderboard_df: pd.DataFrame
     l2_leaderboard_df: pd.DataFrame
+    custom_meta_data: Dict[str, Any]
     leaderboard_df_cols = {'model', 'score_test', 'score_val'}
 
     def __post_init__(self):
