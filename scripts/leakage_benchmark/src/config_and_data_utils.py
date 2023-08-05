@@ -25,34 +25,23 @@ class LeakageBenchmarkConfig:
     @property
     def default_l2(self):
         return {
-            'KNN': [
+            'GBM': [
                 {},
+                {'random_noise_for_stack': True, 'ag_args': {'name_suffix': '_noise_dummy'}},
+                {
+                    'monotone_constraints_for_stack_features': True,
+                    'monotone_constraints_method': 'advanced', 'ag_args': {'name_suffix': '_monotonic'},
+                    'monotone_penalty': 0,
+                },
                 {'drop_duplicates': True, 'ag_args': {'name_suffix': '_dd'}},
+                {
+                    'drop_duplicates': True,
+                    'monotone_constraints_for_stack_features': True,
+                    'monotone_constraints_method': 'advanced', 'ag_args': {'name_suffix': '_monotonic_dd'},
+                    'monotone_penalty': 0,
 
-            ],
-            'RF':
-                [
-                    {},
-                    {'drop_duplicates': True, 'ag_args': {'name_suffix': '_dd'}},
-                ],
-            'GBM':
-                [
-                    {},
-                    {'random_noise_for_stack': True, 'ag_args': {'name_suffix': '_noise_dummy'}},
-                    {
-                        'monotone_constraints_for_stack_features': True,
-                        'monotone_constraints_method': 'advanced', 'ag_args': {'name_suffix': '_monotonic'},
-                        'monotone_penalty': 0,
-                    },
-                    {'drop_duplicates': True, 'ag_args': {'name_suffix': '_dd'}},
-                    {
-                        'drop_duplicates': True,
-                        'monotone_constraints_for_stack_features': True,
-                        'monotone_constraints_method': 'advanced', 'ag_args': {'name_suffix': '_monotonic_dd'},
-                        'monotone_penalty': 0,
-
-                    },
-                ]
+                },
+            ]
         }
 
     def repo_init(self, repo):

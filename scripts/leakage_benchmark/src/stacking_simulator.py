@@ -167,7 +167,7 @@ def _find_optimal_threshold(y, proba):
 def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test, eval_metric: Scorer,
                         oof_col_names: List[str], l1_feature_metadata: FeatureMetadata,
                         sub_sample_data: bool = False, problem_type: str | None = None) -> Tuple[pd.DataFrame, Dict]:
-    print("Start running AutoGluon on L2 data.")
+    print("Start preprocessing L2 data and collect metadata.")
     label = "class"
     l2_feature_metadata = _get_l2_feature_metadata(l2_X_train, l2_y_train, oof_col_names, l1_feature_metadata)
 
@@ -196,8 +196,10 @@ def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test,
         test_feature_label_duplicates=sum(l2_test_data.drop(columns=f_l_dup).duplicated()) / len(l2_test_data),
 
         # Unique
-        train_unique_vlaues_per_oof=[(col, len(np.unique(l2_train_data[col]))) for col in oof_col_names],
-        test_unique_vlaues_per_oof=[(col, len(np.unique(l2_test_data[col]))) for col in oof_col_names],
+        train_unique_vlaues_per_oof=[(col, len(np.unique(l2_train_data[col])) / len(l2_train_data)) for col in
+                                     oof_col_names],
+        test_unique_vlaues_per_oof=[(col, len(np.unique(l2_test_data[col])) / len(l2_test_data)) for col in
+                                    oof_col_names],
     )
 
     if problem_type == 'binary':
@@ -213,7 +215,8 @@ def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test,
     # ray.init(local_mode=True)
 
     # Run AutoGluon
-    predictor = TabularPredictor(eval_metric=eval_metric.name, label=label, verbosity=0, problem_type=problem_type,
+    print("Start running AutoGluon on L2 data.")
+    predictor = TabularPredictor(eval_metric=eval_metric.name, label=label, verbosity=4, problem_type=problem_type,
                                  learner_kwargs=dict(random_state=1)).fit(
         train_data=l2_train_data,
         hyperparameters=l2_models,
@@ -222,7 +225,6 @@ def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test,
         num_bag_folds=8,
         feature_generator=IdentityFeatureGenerator(),
         feature_metadata=l2_feature_metadata
-
     )
 
     leaderboard_leak = predictor.leaderboard(l2_test_data, silent=True)[['model', 'score_test', 'score_val']]
