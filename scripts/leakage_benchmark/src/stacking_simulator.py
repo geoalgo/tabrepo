@@ -142,6 +142,28 @@ def _compute_nearest_neighbor_distance(X_train, y_train, X_test):
     return oof_distance, np.mean(np.array(test_distances), axis=0)
 
 
+def _find_optimal_threshold(y, proba):
+    from sklearn.metrics import balanced_accuracy_score
+
+    threshold_pos = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65,
+                     0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+
+    def proba_to_binary(proba, t):
+        return np.where(proba >= t, 1, 0)
+
+    tf = threshold_pos[
+        np.argmax(
+            [
+                balanced_accuracy_score(
+                    y, proba_to_binary(proba, ti)
+                )
+                for ti in threshold_pos
+            ]
+        )
+    ]
+    return tf
+
+
 def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test, eval_metric: Scorer,
                         oof_col_names: List[str], l1_feature_metadata: FeatureMetadata,
                         sub_sample_data: bool = False, problem_type: str | None = None) -> Tuple[pd.DataFrame, Dict]:
@@ -164,6 +186,7 @@ def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test,
     # Compute metadata
     f_dup = oof_col_names + [label]
     f_l_dup = oof_col_names
+
     custom_meta_data = dict(
         train_l2_duplciates=sum(l2_train_data.duplicated()) / len(l2_train_data),
         train_feature_duplciates=sum(l2_train_data.drop(columns=f_dup).duplicated()) / len(l2_train_data),
@@ -171,11 +194,17 @@ def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test,
         test_l2_duplicates=sum(l2_test_data.duplicated()) / len(l2_test_data),
         test_feature_duplciates=sum(l2_test_data.drop(columns=f_dup).duplicated()) / len(l2_test_data),
         test_feature_label_duplicates=sum(l2_test_data.drop(columns=f_l_dup).duplicated()) / len(l2_test_data),
+
+        # Unique
+        train_unique_vlaues_per_oof=[(col, len(np.unique(l2_train_data[col]))) for col in oof_col_names],
+        test_unique_vlaues_per_oof=[(col, len(np.unique(l2_test_data[col]))) for col in oof_col_names],
     )
 
-    # TODO (for train and test)
-    #  - unique values of OOF per col
-    #  - optimal threshold per col and avg
+    if problem_type == 'binary':
+        custom_meta_data['optimal_threshold_train_per_oof'] = \
+            [(col, _find_optimal_threshold(l2_train_data[label], l2_train_data[col])) for col in oof_col_names]
+        custom_meta_data['optimal_threshold_test_per_oof'] = \
+            [(col, _find_optimal_threshold(l2_test_data[label], l2_test_data[col])) for col in oof_col_names]
 
     if sub_sample_data:
         l2_train_data, l2_test_data = _sub_sample(l2_train_data, l2_test_data)
