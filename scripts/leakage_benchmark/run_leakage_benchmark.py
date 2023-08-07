@@ -4,8 +4,11 @@ from scripts.leakage_benchmark.src.config_and_data_utils import LeakageBenchmark
 
 from scripts.leakage_benchmark.src.stacking_simulator import obtain_input_data_for_l2, autogluon_l2_runner
 
+import pickle
+import pathlib
 
-def _leakage_analysis(repo, lbc, dataset, fold):
+
+def _leakage_analysis(repo, lbc, dataset, fold) -> LeakageBenchmarkFoldResults:
     print(f'Leakage Analysis for {dataset}, fold {fold}...')
     # L1
     l2_X_train, y_train, l2_X_test, y_test, eval_metric, oof_col_names, l1_results, l1_feature_metadata = \
@@ -25,10 +28,22 @@ def _leakage_analysis(repo, lbc, dataset, fold):
         l2_leaderboard_df=l2_results,
         custom_meta_data=custom_meta_data
     )
-    print(results.custom_meta_data)
+    # print(results.custom_meta_data)
     print('... done.')
 
     return results
+
+
+def _dataset_subset_filter(repo):
+    # Maybe move this to EvaluationRepositoryZeroshot class
+    dataset_subset = []
+    for dataset in repo.dataset_names():
+        md = repo.dataset_metadata(repo.dataset_to_tid(dataset))
+
+        if (md['NumberOfClasses'] == 2) and (md['NumberOfInstances'] <= 10000):
+            dataset_subset.append(dataset)
+
+    return dataset_subset
 
 
 def analyze_starter(repo: EvaluationRepositoryZeroshot, lbc: LeakageBenchmarkConfig):
@@ -42,9 +57,18 @@ def analyze_starter(repo: EvaluationRepositoryZeroshot, lbc: LeakageBenchmarkCon
     print(f'n_datasets={n_datasets}')
 
     # Loop over datasets for benchmark
+    all_results = []
     for dataset_num, dataset in enumerate(lbc.datasets):
+        fold_results = []
         for fold in repo.folds:
-            _leakage_analysis(repo, lbc, dataset, fold)
+            fold_results.append(_leakage_analysis(repo, lbc, dataset, fold))
+        all_results.append(fold_results)
+
+    # Save results for now
+    file_dir = pathlib.Path(__file__).parent.resolve() / 'output'
+    file_dir.mkdir(parents=True, exist_ok=True)
+    with open(file_dir / 'results.pkl', 'wb') as f:
+        pickle.dump(all_results, f)
 
 
 if __name__ == '__main__':
@@ -55,6 +79,6 @@ if __name__ == '__main__':
     ).to_zeroshot()
     init_lbc = LeakageBenchmarkConfig(
         l1_models=None,
-        datasets=['airlines']  # airlines,'wine_quality', 'balance_scale', 'adult'
+        datasets=_dataset_subset_filter(repository)  # airlines,'wine_quality', 'balance-scale', 'adult'
     )
     analyze_starter(repo=repository, lbc=init_lbc)
