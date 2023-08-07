@@ -235,8 +235,8 @@ class EvaluationRepository(SaveLoadMixin):
         :param fold: fold index of a fold associated to the OpenML task.
         :param train_data: the train data for the tid and fold
         :param test_data: the test data for the tid and fold
-        :param reset_index: if True, reset index such that both subset have an index starting from 0.
-        :return: X_train, y_train, X_test, y_test
+        :param reset_index: if True, reset index such that both data subset have an index starting from 0.
+        :return: X_train, y_train, X_test, y_test, feature_metadata
         """
         task_ground_truth_metadata: dict = self._ground_truth[tid][fold]
         label = task_ground_truth_metadata['label']
@@ -254,11 +254,16 @@ class EvaluationRepository(SaveLoadMixin):
         X_train = preprocessor.fit_transform(X_train, y_train)
         X_test = preprocessor.transform(X_test)
 
-        label_map = {k: v for k, v in zip(task_ground_truth_metadata['ordered_class_labels'],
-                                          task_ground_truth_metadata['ordered_class_labels_transformed'])}
-
-        y_train = y_train.apply(lambda x: label_map[x])
-        y_test = y_test.apply(lambda x: label_map[x])
+        problem_type = task_ground_truth_metadata["problem_type"]
+        if problem_type in ["multiclass", "binary"]:
+            label_map = {k: v for k, v in zip(task_ground_truth_metadata['ordered_class_labels'],
+                                              task_ground_truth_metadata['ordered_class_labels_transformed'])}
+            y_train = y_train.apply(lambda x: label_map[x])
+            y_test = y_test.apply(lambda x: label_map[x])
+        elif problem_type == "regression":
+            pass
+        else:
+            raise NotImplementedError(f"Problem type not supported yet: {problem_type}")
 
         if reset_index:
             X_train = X_train.reset_index(drop=True)

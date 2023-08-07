@@ -56,16 +56,26 @@ def obtain_input_data_for_l2(repo: EvaluationRepository, l1_models: List[str], d
     oof_col_names = []
     for i, m in enumerate(l1_models):
 
-        if problem_type != 'binary':
-            raise NotImplementedError  # TODO support multiclass and regression here
+        if problem_type in ['binary', 'regression']:
+            pred_val_m = pred_val[i]
+            pred_test_m = pred_test[i]
+            col_name = f'{L1_PREFIX}{m}'
 
-        pred_val_m = pred_val[i]
-        pred_test_m = pred_test[i]
-        col_name = f'{L1_PREFIX}{m}'
+            l2_X_train[col_name] = pred_val_m
+            l2_X_test[col_name] = pred_test_m
+            oof_col_names.append(col_name)
+        elif problem_type in ['multiclass']:
+            classes = task_ground_truth_metadata['ordered_class_labels_transformed']
 
-        l2_X_train[col_name] = pred_val_m
-        l2_X_test[col_name] = pred_test_m
-        oof_col_names.append(col_name)
+            preds_val_m = pred_val[i]
+            preds_test_m = pred_test[i]
+            col_names = [f'{L1_PREFIX}{m}/c{c_name}' for c_name in classes]
+
+            l2_X_train[col_names] = preds_val_m
+            l2_X_test[col_names] = preds_test_m
+            oof_col_names.extend(col_names)
+        else:
+            raise NotImplementedError(f'Problem type {problem_type} not supported.')
 
     # Get L1 scores
     leaderboard = zsc.df_results_by_dataset_vs_automl.loc[(zsc.df_results_by_dataset_vs_automl['dataset'] == task) & (
@@ -78,13 +88,14 @@ def obtain_input_data_for_l2(repo: EvaluationRepository, l1_models: List[str], d
 
 
 def _get_l2_feature_metadata(l2_X_train, l2_y_train, oof_col_names, l1_feature_metadata):
-    prepr = AutoMLPipelineFeatureGenerator()
-    prepr.fit_transform(l2_X_train[oof_col_names], l2_y_train)
+    # Follow autogluon/core/src/autogluon/core/models/ensemble/stacker_ensemble_model.py _add_stack_to_feature_metadata
+    #   -- No additional preprocessing from our side here. If at all, this happens at the model level.
+    from autogluon.common.features.types import R_FLOAT, S_STACK
 
-    l2_feature_metadata = l1_feature_metadata.join_metadata(prepr.feature_metadata)
-
-    # Add stack metadata
-    l2_feature_metadata.type_group_map_special['stack'] = oof_col_names
+    type_map_raw = {column: R_FLOAT for column in oof_col_names}
+    type_group_map_special = {S_STACK: oof_col_names}
+    stacker_feature_metadata = FeatureMetadata(type_map_raw=type_map_raw, type_group_map_special=type_group_map_special)
+    l2_feature_metadata = l1_feature_metadata.join_metadata(stacker_feature_metadata)
 
     return l2_feature_metadata
 
@@ -186,20 +197,32 @@ def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test,
     # Compute metadata
     f_dup = oof_col_names + [label]
     f_l_dup = oof_col_names
-
+    train_n_instances = len(l2_train_data)
+    n_columns = len(l2_train_data.columns)
+    test_n_instances = len(l2_test_data)
     custom_meta_data = dict(
-        train_l2_duplciates=sum(l2_train_data.duplicated()) / len(l2_train_data),
-        train_feature_duplciates=sum(l2_train_data.drop(columns=f_dup).duplicated()) / len(l2_train_data),
-        train_feature_label_duplicates=sum(l2_train_data.drop(columns=f_l_dup).duplicated()) / len(l2_train_data),
-        test_l2_duplicates=sum(l2_test_data.duplicated()) / len(l2_test_data),
-        test_feature_duplciates=sum(l2_test_data.drop(columns=f_dup).duplicated()) / len(l2_test_data),
-        test_feature_label_duplicates=sum(l2_test_data.drop(columns=f_l_dup).duplicated()) / len(l2_test_data),
+        train_l2_duplciates=sum(l2_train_data.duplicated()) / train_n_instances,
+        train_feature_duplciates=sum(l2_train_data.drop(columns=f_dup).duplicated()) / train_n_instances,
+        train_feature_label_duplicates=sum(l2_train_data.drop(columns=f_l_dup).duplicated()) / train_n_instances,
+        test_l2_duplicates=sum(l2_test_data.duplicated()) / test_n_instances,
+        test_feature_duplciates=sum(l2_test_data.drop(columns=f_dup).duplicated()) / test_n_instances,
+        test_feature_label_duplicates=sum(l2_test_data.drop(columns=f_l_dup).duplicated()) / test_n_instances,
 
         # Unique
-        train_unique_vlaues_per_oof=[(col, len(np.unique(l2_train_data[col])) / len(l2_train_data)) for col in
+        train_unique_vlaues_per_oof=[(col, len(np.unique(l2_train_data[col])) / train_n_instances) for col in
                                      oof_col_names],
-        test_unique_vlaues_per_oof=[(col, len(np.unique(l2_test_data[col])) / len(l2_test_data)) for col in
+        test_unique_vlaues_per_oof=[(col, len(np.unique(l2_test_data[col])) / test_n_instances) for col in
                                     oof_col_names],
+        train_duplicated_columns=sum(l2_train_data.T.duplicated()) / n_columns,
+        test_duplicated_columns=sum(l2_test_data.T.duplicated()) / n_columns,
+
+        # Basic properties
+        train_n_instances=train_n_instances,
+        test_n_instances=test_n_instances,
+        n_columns=n_columns,
+        problem_type=problem_type,
+        eval_metric_name=eval_metric.name,
+
     )
 
     if problem_type == 'binary':
@@ -216,7 +239,7 @@ def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test,
 
     # Run AutoGluon
     print("Start running AutoGluon on L2 data.")
-    predictor = TabularPredictor(eval_metric=eval_metric.name, label=label, verbosity=4, problem_type=problem_type,
+    predictor = TabularPredictor(eval_metric=eval_metric.name, label=label, verbosity=0, problem_type=problem_type,
                                  learner_kwargs=dict(random_state=1)).fit(
         train_data=l2_train_data,
         hyperparameters=l2_models,
@@ -228,6 +251,6 @@ def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test,
     )
 
     leaderboard_leak = predictor.leaderboard(l2_test_data, silent=True)[['model', 'score_test', 'score_val']]
-    leaderboard_leak['model'] = leaderboard_leak['model'].apply(lambda x: x.replace('L1', 'L1.5'))
+    leaderboard_leak['model'] = leaderboard_leak['model'].apply(lambda x: x.replace('L1', 'L2'))
 
     return leaderboard_leak, custom_meta_data
