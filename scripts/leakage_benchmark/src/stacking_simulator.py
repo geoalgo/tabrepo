@@ -234,20 +234,20 @@ def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test,
     if sub_sample_data:
         l2_train_data, l2_test_data = _sub_sample(l2_train_data, l2_test_data)
 
-    # import ray
-    # ray.init(local_mode=True)
-
     # Run AutoGluon
     print("Start running AutoGluon on L2 data.")
     predictor = TabularPredictor(eval_metric=eval_metric.name, label=label, verbosity=0, problem_type=problem_type,
-                                 learner_kwargs=dict(random_state=1)).fit(
+                                 learner_kwargs=dict(random_state=1))
+    predictor.fit(
         train_data=l2_train_data,
         hyperparameters=l2_models,
         fit_weighted_ensemble=False,
         num_stack_levels=0,
         num_bag_folds=8,
         feature_generator=IdentityFeatureGenerator(),
-        feature_metadata=l2_feature_metadata
+        feature_metadata=l2_feature_metadata,
+
+        # ag_args_ensemble={"fold_fitting_strategy": "sequential_local"}
     )
 
     leaderboard_leak = predictor.leaderboard(l2_test_data, silent=True)[['model', 'score_test', 'score_val']]

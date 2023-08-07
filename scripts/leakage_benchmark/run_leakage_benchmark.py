@@ -58,7 +58,8 @@ def analyze_starter(repo: EvaluationRepositoryZeroshot, lbc: LeakageBenchmarkCon
 
     # Loop over datasets for benchmark
     all_results = []
-    for dataset_num, dataset in enumerate(lbc.datasets):
+    for dataset_num, dataset in enumerate(lbc.datasets, start=1):
+        print(f"Start Dataset Number {dataset_num}/{n_datasets}")
         fold_results = []
         for fold in repo.folds:
             fold_results.append(_leakage_analysis(repo, lbc, dataset, fold))
