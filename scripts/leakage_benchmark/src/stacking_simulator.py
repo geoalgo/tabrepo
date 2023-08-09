@@ -175,17 +175,155 @@ def _find_optimal_threshold(y, proba):
     return tf
 
 
-def _get_meta_data(l2_train_data, l2_test_data, label, oof_col_names, problem_type, eval_metric):
+def _plot_problematic_instances(X, y):
+    from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor, plot_tree
 
+    import matplotlib.pyplot as plt
+
+    fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(20, 20))
+    tree = DecisionTreeClassifier().fit(X, y)
+    plot_tree(tree,
+              feature_names=tree.feature_names_in_,
+              filled=True,
+              rounded=True)
+    plt.savefig("tree.pdf")
+    pd.DataFrame(tree.apply(X)).groupby(by=0)[0].count().mean()
+
+    df = pd.DataFrame(tree.apply(X))
+    df[1] = y
+    df.groupby(by=0)[1].mean().mean()
+
+    fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(20, 20))
+    tree = DecisionTreeClassifier(min_samples_leaf=5).fit(X, y)
+    plot_tree(tree,
+              feature_names=tree.feature_names_in_,
+              filled=True,
+              rounded=True)
+    plt.savefig("tree_2.pdf")
+    exit(0)
+
+def _preprocess_save_for_sklearn(X_train, y_train, X_test):
+    from sklearn.compose import ColumnTransformer
+    from sklearn.compose import make_column_selector
+    from sklearn.preprocessing import OrdinalEncoder
+    from sklearn.impute import SimpleImputer
+    from sklearn.pipeline import Pipeline
+
+    preprocessor = Pipeline(
+        [
+            ('fix', ColumnTransformer(transformers=[
+                ("num", SimpleImputer(strategy="constant", fill_value=-1),
+                 make_column_selector(dtype_exclude="object"),),
+                ("cat",
+                 Pipeline(steps=[("encoder", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1),),
+                                 ("imputer", SimpleImputer(strategy="constant", fill_value=-1)),
+                                 ]), make_column_selector(dtype_include="object"),), ], sparse_threshold=0, )),
+        ]
+    )
+    X_train = pd.DataFrame(preprocessor.fit_transform(X_train, y_train), columns=X_train.columns)
+    X_test = pd.DataFrame(preprocessor.transform(X_test), columns=X_test.columns)
+
+    return X_train, X_test
+
+def _get_leaf_node_view(X_train, y_train, X_test, y_test, min_samples_leaf, problem_type, oof_col_names):
+    from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+    from functools import partial
+    import math
+    from decimal import localcontext
+
+    X_train, X_test = _preprocess_save_for_sklearn(X_train, y_train, X_test)
+    y_train = y_train.reset_index(drop=True)
+    y_test = y_test.reset_index(drop=True)
+
+    if problem_type == 'regression':
+        tree = DecisionTreeRegressor(min_samples_leaf=min_samples_leaf)
+    else:
+        tree = DecisionTreeClassifier(min_samples_leaf=min_samples_leaf)
+
+    tree.fit(X_train, y_train)
+
+
+    def misguided_ratio(subset_df, l1_accuracy):
+        # This won't work for regression or multi-class without defining alpha and beta in a different way
+        sc = subset_df.value_counts()
+        alpha = sc['a'] if 'a' in sc else 0
+        beta = sc['b'] if 'b' in sc else 0
+        p = alpha + beta
+
+        with localcontext() as ctx:
+            ctx.prec = 32
+            f_a = math.factorial(alpha)
+            f_b = math.factorial(beta)
+            f_p = math.factorial(p)
+            save_fact_ratio = float(ctx.divide(f_p, ctx.multiply(f_a, f_b)))
+
+        assert math.isfinite(save_fact_ratio),  "save_fact_ratio is not a finite number"
+
+        data_proba_l1_is_incorrect = 1 - (l1_accuracy)**alpha * (1 - l1_accuracy)**beta * save_fact_ratio
+        potential_cheat_instances = beta * data_proba_l1_is_incorrect
+
+        return potential_cheat_instances
+
+    def stats(X, y):
+        df = pd.DataFrame(tree.apply(X))
+        df[1] = y
+
+        avg_ = []
+        for oof_col in oof_col_names:
+            tmp_oof_col = X[oof_col].copy()
+            threshold = 0.5
+            pseudo_correct_mask = ((tmp_oof_col > threshold) & (y == 1)) | ((tmp_oof_col <= threshold) & (y == 0))
+
+            tmp_oof_col[pseudo_correct_mask] = 'a'
+            tmp_oof_col[~pseudo_correct_mask] = 'b'
+            accuracy = sum(pseudo_correct_mask)/len(pseudo_correct_mask)
+
+            df[3] = tmp_oof_col
+            potential_for_cheat_ratio = df.groupby(by=0)[3].apply(partial(misguided_ratio, l1_accuracy=accuracy)).sum()/len(X)
+            avg_.append(potential_for_cheat_ratio)
+
+        return dict(avg_rel_sample_count=(df.groupby(by=0)[0].count() / len(X)).mean(),
+                    avg_potential_for_cheat_ratio=np.mean(avg_) if avg_ else -1)
+
+    return dict(train_stats=stats(X_train, y_train),
+                test_stats=stats(X_test, y_test))
+
+def _cv_wrapper_avg_cheat(X_train, y_train, min_samples_leaf, problem_type, oof_col_names):
+    from autogluon.core.utils.utils import CVSplitter
+
+    X_train = X_train.reset_index(drop=True)
+    y_train = y_train.reset_index(drop=True)
+    cv = CVSplitter(n_splits=8, n_repeats=1, stratified=True, random_state=1)
+
+    i_dict_list = []
+    for train_index, test_index in cv.split(X_train, y_train):
+        X_train_cv, X_test_cv = X_train.iloc[train_index], X_train.iloc[test_index]
+        y_train_cv, y_test_cv = y_train.iloc[train_index], y_train.iloc[test_index]
+        i_dict_list.append(_get_leaf_node_view(X_train_cv, y_train_cv, X_test_cv, y_test_cv,
+                                               min_samples_leaf=min_samples_leaf, problem_type=problem_type,
+                                               oof_col_names=oof_col_names))
+    return pd.concat([pd.DataFrame(x) for x in i_dict_list]).groupby(
+        level=0).mean().rename(columns={'test_stats': 'val_stats'}).to_dict()
+
+
+def _get_meta_data(l2_train_data, l2_test_data, label, oof_col_names, problem_type, eval_metric):
     # TODO add:
     #   - ratio of rows that have no correct base model.
+    #   - l1 accuracy
 
-    # Compute metadata
+    # Init
     f_dup = oof_col_names + [label]
     f_l_dup = oof_col_names
     train_n_instances = len(l2_train_data)
     n_columns = len(l2_train_data.columns)
     test_n_instances = len(l2_test_data)
+
+    X_train = l2_train_data.drop(columns=[label])
+    y_train = l2_train_data[label]
+    X_test = l2_test_data.drop(columns=[label])
+    y_test = l2_test_data[label]
+
+    # Compute metadata
     custom_meta_data = dict(
         train_l2_duplciates=sum(l2_train_data.duplicated()) / train_n_instances,
         train_feature_duplciates=sum(l2_train_data.drop(columns=f_dup).duplicated()) / train_n_instances,
@@ -217,6 +355,11 @@ def _get_meta_data(l2_train_data, l2_test_data, label, oof_col_names, problem_ty
         custom_meta_data['optimal_threshold_test_per_oof'] = \
             [(col, _find_optimal_threshold(l2_test_data[label], l2_test_data[col])) for col in oof_col_names]
 
+        custom_meta_data['potential_for_cheat_stats'] = \
+            _get_leaf_node_view(X_train, y_train, X_test, y_test, min_samples_leaf=1, problem_type=problem_type, oof_col_names=oof_col_names)
+        custom_meta_data['potential_for_cheat_stats_cv'] = \
+            _cv_wrapper_avg_cheat(X_train, y_train, min_samples_leaf=1, problem_type=problem_type, oof_col_names=oof_col_names )
+        
     return custom_meta_data
 
 
@@ -232,6 +375,8 @@ def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test,
     #   Downside is that it is quite expensive I guess. (add at fit time not here)
     # _compute_nearest_neighbor_distance(l2_X_train.drop(columns=oof_col_names), l2_y_train,
     #                                    l2_X_test.drop(columns=oof_col_names))
+
+    # _plot_problematic_instances(l2_X_train[[f'{L1_PREFIX}RandomForest_c1_BAG_L1']], l2_y_train)
 
     # Build data
     l2_train_data = l2_X_train
