@@ -175,24 +175,10 @@ def _find_optimal_threshold(y, proba):
     return tf
 
 
-def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test, eval_metric: Scorer,
-                        oof_col_names: List[str], l1_feature_metadata: FeatureMetadata,
-                        sub_sample_data: bool = False, problem_type: str | None = None) -> Tuple[pd.DataFrame, Dict]:
-    print("Start preprocessing L2 data and collect metadata.")
-    label = "class"
-    l2_feature_metadata = _get_l2_feature_metadata(l2_X_train, l2_y_train, oof_col_names, l1_feature_metadata)
+def _get_meta_data(l2_train_data, l2_test_data, label, oof_col_names, problem_type, eval_metric):
 
-    # TODO: test performance of something like this as additional feature even without the leak
-    #   Following wolpert, the idea is that l2 models learn from knowing the distance to the nearest neighbor
-    #   Downside is that it is quite expensive I guess. (add at fit time not here)
-    # _compute_nearest_neighbor_distance(l2_X_train.drop(columns=oof_col_names), l2_y_train,
-    #                                    l2_X_test.drop(columns=oof_col_names))
-
-    # Build data
-    l2_train_data = l2_X_train
-    l2_train_data[label] = l2_y_train
-    l2_test_data = l2_X_test
-    l2_test_data[label] = l2_y_test
+    # TODO add:
+    #   - ratio of rows that have no correct base model.
 
     # Compute metadata
     f_dup = oof_col_names + [label]
@@ -230,6 +216,33 @@ def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test,
             [(col, _find_optimal_threshold(l2_train_data[label], l2_train_data[col])) for col in oof_col_names]
         custom_meta_data['optimal_threshold_test_per_oof'] = \
             [(col, _find_optimal_threshold(l2_test_data[label], l2_test_data[col])) for col in oof_col_names]
+
+    return custom_meta_data
+
+
+def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test, eval_metric: Scorer,
+                        oof_col_names: List[str], l1_feature_metadata: FeatureMetadata, get_meta_data: bool = True,
+                        sub_sample_data: bool = False, problem_type: str | None = None) -> Tuple[pd.DataFrame, Dict]:
+    print(f"Start preprocessing L2 data and collect metadata. {l2_X_train.shape}")
+    label = "class"
+    l2_feature_metadata = _get_l2_feature_metadata(l2_X_train, l2_y_train, oof_col_names, l1_feature_metadata)
+
+    # TODO: test performance of something like this as additional feature even without the leak
+    #   Following wolpert, the idea is that l2 models learn from knowing the distance to the nearest neighbor
+    #   Downside is that it is quite expensive I guess. (add at fit time not here)
+    # _compute_nearest_neighbor_distance(l2_X_train.drop(columns=oof_col_names), l2_y_train,
+    #                                    l2_X_test.drop(columns=oof_col_names))
+
+    # Build data
+    l2_train_data = l2_X_train
+    l2_train_data[label] = l2_y_train
+    l2_test_data = l2_X_test
+    l2_test_data[label] = l2_y_test
+
+    if get_meta_data:
+        custom_meta_data = _get_meta_data(l2_train_data, l2_test_data, label, oof_col_names, problem_type, eval_metric)
+    else:
+        custom_meta_data = {}
 
     if sub_sample_data:
         l2_train_data, l2_test_data = _sub_sample(l2_train_data, l2_test_data)
