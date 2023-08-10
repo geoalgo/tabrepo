@@ -28,7 +28,7 @@ class LeakageBenchmarkConfig:
             'GBM': [
                 {},
                 # {'only_correct_instances': True, 'ag_args': {'name_suffix': '_OCI'}},
-                # {'random_noise_for_stack': True, 'ag_args': {'name_suffix': '_noise_dummy'}},
+                {'random_noise_for_stack': True, 'ag_args': {'name_suffix': '_noise_dummy'}},
                 {
                     'monotone_constraints_for_stack_features': True,
                     'monotone_constraints_method': 'advanced', 'ag_args': {'name_suffix': '_monotonic'},
@@ -77,3 +77,52 @@ class LeakageBenchmarkFoldResults:
     def print_leaderboard(leaderboard_df: pd.DataFrame):
         with pd.option_context("display.max_rows", None, "display.max_columns", None, "display.width", 1000):
             print(leaderboard_df)
+
+    # def rank(self):
+    #
+    #     return
+
+    def model_selection_l1_l2_test_score_difference(self, l2_model=None, noise_level=0.005) -> float:
+        # Returns how much better l1 is than l2 (if it is better, otherwise 0)
+        l1_test_score = self.l1_leaderboard_df.iloc[self.l1_leaderboard_df['score_val'].argmax()]['score_test']
+
+        if l2_model is None:
+            l2_test_score = self.l2_leaderboard_df.iloc[self.l2_leaderboard_df['score_val'].argmax()]['score_test']
+            l2_score_val = self.l2_leaderboard_df['score_val'].max()
+        else:
+            l2_test_score = self.l2_leaderboard_df.loc[self.l2_leaderboard_df['model'] == l2_model, 'score_test'].iloc[0]
+            l2_score_val = self.l2_leaderboard_df.loc[self.l2_leaderboard_df['model'] == l2_model, 'score_val'].iloc[0]
+
+        # Rank test
+        # if self.l1_leaderboard_df['score_val'].max() <= l2_score_val:
+        #     return l2_test_score
+        # else:
+        #     return l1_test_score
+
+        # noise likely, ignore
+        if abs(l1_test_score - l2_test_score) <= noise_level:
+            return 0
+
+        # as intended
+        if (self.l1_leaderboard_df['score_val'].max() <= l2_score_val) and \
+                (l1_test_score <= l2_test_score):
+            return -3
+
+        # Valid behavior but stacking did not work well either way.
+        if (self.l1_leaderboard_df['score_val'].max() >= l2_score_val) and \
+                (l1_test_score >= l2_test_score):
+            return -2
+
+        # reverse leakage case
+        # (val score of L2 is very bad while its test score is much better, resulting in us picking the worse l1 model)
+        if (self.l1_leaderboard_df['score_val'].max() >= l2_score_val) and \
+                (l1_test_score <= l2_test_score):
+            return l1_test_score - l2_test_score
+
+        # leakage case
+        if (self.l1_leaderboard_df['score_val'].max() <= l2_score_val) and \
+                (l1_test_score >= l2_test_score):
+            return l1_test_score - l2_test_score
+
+        # failure case
+        return float('nan')
