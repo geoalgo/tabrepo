@@ -40,7 +40,7 @@ def _dataset_subset_filter(repo):
     for dataset in repo.dataset_names():
         md = repo.dataset_metadata(repo.dataset_to_tid(dataset))
 
-        if (md['NumberOfClasses'] == 2) and (md['NumberOfInstances'] <= 10000):
+        if md['NumberOfInstances'] <= 100000:
             dataset_subset.append(dataset)
 
     return dataset_subset

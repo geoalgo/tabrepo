@@ -12,8 +12,7 @@ from autogluon.features.generators import IdentityFeatureGenerator
 from autogluon.common.features.feature_metadata import FeatureMetadata
 
 from scripts.leakage_benchmark.src.config_and_data_utils import L1_PREFIX
-from scripts.leakage_benchmark.src.custom_metadata_funcs import _sub_sample, _find_optimal_threshold, \
-    _get_leaf_node_view, _get_leaf_duplicated_view, _all_wrong_count
+from scripts.leakage_benchmark.src.custom_metadata_funcs import _sub_sample, _get_meta_data
 
 
 def obtain_input_data_for_l2(repo: EvaluationRepository, l1_models: List[str], dataset: str, fold: int) \
@@ -100,68 +99,6 @@ def _get_l2_feature_metadata(l2_X_train, l2_y_train, oof_col_names, l1_feature_m
     l2_feature_metadata = l1_feature_metadata.join_metadata(stacker_feature_metadata)
 
     return l2_feature_metadata
-
-
-def _get_meta_data(l2_train_data, l2_test_data, label, oof_col_names, problem_type, eval_metric):
-    # Init
-    f_dup = oof_col_names + [label]
-    f_l_dup = oof_col_names
-    train_n_instances = len(l2_train_data)
-    n_columns = len(l2_train_data.columns)
-    test_n_instances = len(l2_test_data)
-
-    X_train = l2_train_data.drop(columns=[label])
-    y_train = l2_train_data[label]
-    X_test = l2_test_data.drop(columns=[label])
-    y_test = l2_test_data[label]
-
-    # Compute metadata
-    custom_meta_data = dict(
-        train_l2_duplciates=sum(l2_train_data.duplicated()) / train_n_instances,
-        train_feature_duplciates=sum(l2_train_data.drop(columns=f_dup).duplicated()) / train_n_instances,
-        train_feature_label_duplicates=sum(l2_train_data.drop(columns=f_l_dup).duplicated()) / train_n_instances,
-        test_l2_duplicates=sum(l2_test_data.duplicated()) / test_n_instances,
-        test_feature_duplciates=sum(l2_test_data.drop(columns=f_dup).duplicated()) / test_n_instances,
-        test_feature_label_duplicates=sum(l2_test_data.drop(columns=f_l_dup).duplicated()) / test_n_instances,
-
-        # Unique
-        train_unique_vlaues_per_oof=[(col, len(np.unique(l2_train_data[col])) / train_n_instances) for col in
-                                     oof_col_names],
-        test_unique_vlaues_per_oof=[(col, len(np.unique(l2_test_data[col])) / test_n_instances) for col in
-                                    oof_col_names],
-        train_duplicated_columns=sum(l2_train_data.T.duplicated()) / n_columns,
-        test_duplicated_columns=sum(l2_test_data.T.duplicated()) / n_columns,
-
-        # Basic properties
-        train_n_instances=train_n_instances,
-        test_n_instances=test_n_instances,
-        n_columns=n_columns,
-        problem_type=problem_type,
-        eval_metric_name=eval_metric.name,
-
-    )
-
-    if problem_type == 'binary':
-        custom_meta_data['oof_col_names_order'] = oof_col_names
-
-        custom_meta_data['optimal_threshold_train_per_oof'] = \
-            [_find_optimal_threshold(l2_train_data[label], l2_train_data[col]) for col in oof_col_names]
-        custom_meta_data['optimal_threshold_test_per_oof'] = \
-            [_find_optimal_threshold(l2_test_data[label], l2_test_data[col]) for col in oof_col_names]
-        custom_meta_data['always_wrong_row_ratio_train'] = _all_wrong_count(X_train, y_train, oof_col_names,
-                                                                      threshold=np.mean(custom_meta_data['optimal_threshold_train_per_oof']))
-        custom_meta_data['always_wrong_row_ratio_test'] = _all_wrong_count(X_test, y_test, oof_col_names,
-                                                                            threshold=np.mean(custom_meta_data['optimal_threshold_test_per_oof']))
-
-        custom_meta_data['potential_for_cheat_stats_tree_view'] = \
-            _get_leaf_node_view(X_train, y_train, X_test, y_test, min_samples_leaf=1, problem_type=problem_type, oof_col_names=oof_col_names)
-
-        custom_meta_data['potential_for_cheat_stats_duplicates_view'] = \
-            _get_leaf_duplicated_view(X_train, y_train, X_test, y_test, oof_col_names=oof_col_names)
-        # custom_meta_data['potential_for_cheat_stats_cv'] = \
-        #     _cv_wrapper_avg_cheat(X_train, y_train, min_samples_leaf=1, problem_type=problem_type, oof_col_names=oof_col_names )
-
-    return custom_meta_data
 
 
 def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test, eval_metric: Scorer,

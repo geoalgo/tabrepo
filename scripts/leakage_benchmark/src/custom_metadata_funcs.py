@@ -131,7 +131,8 @@ def _preprocess_save_for_sklearn(X_train, y_train, X_test):
     return X_train, X_test
 
 
-def _get_leaf_node_view(X_train, y_train, X_test, y_test, min_samples_leaf, problem_type, oof_col_names):
+def _get_leaf_node_view(X_train, y_train, X_test, y_test, min_samples_leaf, problem_type, oof_col_names,
+                        p_small_threshold=10):
     from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
     from functools import partial
     import math
@@ -156,17 +157,24 @@ def _get_leaf_node_view(X_train, y_train, X_test, y_test, min_samples_leaf, prob
         beta = sc['b'] if 'b' in sc else 0
         p = alpha + beta
 
-        with localcontext() as ctx:
-            ctx.prec = 32
-            f_a = math.factorial(alpha)
-            f_b = math.factorial(beta)
-            f_p = math.factorial(p)
-            save_fact_ratio = float(ctx.divide(f_p, ctx.multiply(f_a, f_b)))
+        if (p <= p_small_threshold) or (beta > alpha):
+            p1 = (l1_accuracy) ** alpha * (1 - l1_accuracy) ** beta
 
-        assert math.isfinite(save_fact_ratio),  "save_fact_ratio is not a finite number"
+            if p1 > 0:
+                with localcontext() as ctx:
+                    ctx.prec = 32
+                    f_a = math.factorial(alpha)
+                    f_b = math.factorial(beta)
+                    f_p = math.factorial(p)
+                    save_fact_ratio = float(ctx.divide(f_p, ctx.multiply(f_a, f_b)))
 
-        data_proba_l1_is_incorrect = 1 - (l1_accuracy)**alpha * (1 - l1_accuracy)**beta * save_fact_ratio
-        potential_cheat_instances = beta * data_proba_l1_is_incorrect
+                assert math.isfinite(save_fact_ratio), "save_fact_ratio is not a finite number"
+                data_proba_l1_is_incorrect = 1 - p1 * save_fact_ratio
+            else:
+                data_proba_l1_is_incorrect = 0
+            potential_cheat_instances = beta * data_proba_l1_is_incorrect
+        else:
+            potential_cheat_instances = 0
 
         return potential_cheat_instances
 
@@ -182,10 +190,11 @@ def _get_leaf_node_view(X_train, y_train, X_test, y_test, min_samples_leaf, prob
 
             tmp_oof_col[pseudo_correct_mask] = 'a'
             tmp_oof_col[~pseudo_correct_mask] = 'b'
-            accuracy = sum(pseudo_correct_mask)/len(pseudo_correct_mask)
+            accuracy = sum(pseudo_correct_mask) / len(pseudo_correct_mask)
 
             df[3] = tmp_oof_col
-            potential_for_cheat_ratio = df.groupby(by=0)[3].apply(partial(misguided_ratio, l1_accuracy=accuracy)).sum()/len(X)
+            potential_for_cheat_ratio = df.groupby(by=0)[3].apply(
+                partial(misguided_ratio, l1_accuracy=accuracy)).sum() / len(X)
             avg_.append(potential_for_cheat_ratio)
 
         return dict(avg_rel_sample_count=(df.groupby(by=0)[0].count() / len(X)).mean(),
@@ -209,7 +218,6 @@ def _get_leaf_duplicated_view(X_train, y_train, X_test, y_test, oof_col_names):
             return beta
         return 0
 
-
     def stats(X, y):
         avg_ = []
         for oof_col in oof_col_names:
@@ -221,7 +229,7 @@ def _get_leaf_duplicated_view(X_train, y_train, X_test, y_test, oof_col_names):
             tmp_oof_col[~pseudo_correct_mask] = 'b'
             df[1] = tmp_oof_col
 
-            potential_for_cheat_ratio = df.groupby(oof_col)[1].apply(partial(misguided_count)).sum()/len(X)
+            potential_for_cheat_ratio = df.groupby(oof_col)[1].apply(partial(misguided_count)).sum() / len(X)
             avg_.append(potential_for_cheat_ratio)
 
         return dict(avg_potential_for_cheat_ratio=avg_)
@@ -260,4 +268,67 @@ def _all_wrong_count(X, y, oof_col_names, threshold=0.5):
     s_tmp = s_tmp[no_diversity_rows]
     s_tmp[s_tmp == len(stack_f)] = 1
 
-    return sum(s_tmp != y[no_diversity_rows])/len(X)
+    return sum(s_tmp != y[no_diversity_rows]) / len(X)
+
+
+def _get_meta_data(l2_train_data, l2_test_data, label, oof_col_names, problem_type, eval_metric):
+    # Init
+    f_dup = oof_col_names + [label]
+    f_l_dup = oof_col_names
+    train_n_instances = len(l2_train_data)
+    n_columns = len(l2_train_data.columns)
+    test_n_instances = len(l2_test_data)
+
+    X_train = l2_train_data.drop(columns=[label])
+    y_train = l2_train_data[label]
+    X_test = l2_test_data.drop(columns=[label])
+    y_test = l2_test_data[label]
+
+    # Compute metadata
+    custom_meta_data = dict(
+        train_l2_duplicates=sum(l2_train_data.duplicated()) / train_n_instances,
+        train_feature_duplicates=sum(l2_train_data.drop(columns=f_dup).duplicated()) / train_n_instances,
+        test_feature_duplicates=sum(l2_test_data.drop(columns=f_dup).duplicated()) / test_n_instances,
+
+        test_l2_duplicates=sum(l2_test_data.duplicated()) / test_n_instances,
+        test_feature_label_duplicates=sum(l2_test_data.drop(columns=f_l_dup).duplicated()) / test_n_instances,
+        train_feature_label_duplicates=sum(l2_train_data.drop(columns=f_l_dup).duplicated()) / train_n_instances,
+        train_duplicated_columns=sum(l2_train_data.T.duplicated()) / n_columns,
+        test_duplicated_columns=sum(l2_test_data.T.duplicated()) / n_columns,
+
+        # Unique
+        train_unique_values_per_oof=[len(np.unique(l2_train_data[col])) / train_n_instances for col in oof_col_names],
+        test_unique_values_per_oof=[len(np.unique(l2_test_data[col])) / test_n_instances for col in oof_col_names],
+
+        # Basic properties
+        train_n_instances=train_n_instances,
+        test_n_instances=test_n_instances,
+        n_columns=n_columns,
+        problem_type=problem_type,
+        eval_metric_name=eval_metric.name,
+        oof_col_names_order=oof_col_names
+
+    )
+
+    if problem_type == 'binary':
+        custom_meta_data['optimal_threshold_train_per_oof'] = \
+            [_find_optimal_threshold(l2_train_data[label], l2_train_data[col]) for col in oof_col_names]
+        custom_meta_data['optimal_threshold_test_per_oof'] = \
+            [_find_optimal_threshold(l2_test_data[label], l2_test_data[col]) for col in oof_col_names]
+        custom_meta_data['always_wrong_row_ratio_train'] = _all_wrong_count(X_train, y_train, oof_col_names,
+                                                                            threshold=np.mean(custom_meta_data[
+                                                                                                  'optimal_threshold_train_per_oof']))
+        custom_meta_data['always_wrong_row_ratio_test'] = _all_wrong_count(X_test, y_test, oof_col_names,
+                                                                           threshold=np.mean(custom_meta_data[
+                                                                                                 'optimal_threshold_test_per_oof']))
+
+        custom_meta_data['potential_for_cheat_stats_tree_view'] = \
+            _get_leaf_node_view(X_train, y_train, X_test, y_test, min_samples_leaf=1, problem_type=problem_type,
+                                oof_col_names=oof_col_names)
+
+        custom_meta_data['potential_for_cheat_stats_duplicates_view'] = \
+            _get_leaf_duplicated_view(X_train, y_train, X_test, y_test, oof_col_names=oof_col_names)
+        # custom_meta_data['potential_for_cheat_stats_cv'] = \
+        #     _cv_wrapper_avg_cheat(X_train, y_train, min_samples_leaf=1, problem_type=problem_type, oof_col_names=oof_col_names )
+
+    return custom_meta_data

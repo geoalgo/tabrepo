@@ -1,3 +1,4 @@
 autogluon
 ray
-syne-tune[extra]
+openml
+autorank
