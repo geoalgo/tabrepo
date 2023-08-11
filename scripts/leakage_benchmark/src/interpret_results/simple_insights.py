@@ -3,6 +3,7 @@ import pickle
 
 from scripts.leakage_benchmark.src.config_and_data_utils import LeakageBenchmarkFoldResults, LeakageBenchmarkResults
 from scripts.leakage_benchmark.src.interpret_results.plotting.cd_plot import cd_evaluation
+from scripts.leakage_benchmark.src.interpret_results.plotting.distribution_plot import _distribution_plot
 from typing import List
 
 import pandas as pd
@@ -32,7 +33,6 @@ def _run():
           f"\nMoreover, the gap between validation and test score increases on average by {gap_for_leak_ds.mean():.3f}%.")
 
     # Plot leakage prevention quality (overall)
-    leak_res = [r for r in res if r.dataset in list(datasets_that_leak)]
     performance_per_dataset = pd.concat(
         [r.leak_overview_df.drop(index=['all_l2_models'])[['test_score']].T.rename(index=dict(test_score=r.dataset))
          for r in res])
@@ -44,6 +44,29 @@ def _run():
     cd_evaluation(performance_per_dataset[performance_per_dataset.index.isin(datasets_that_leak)], True,
                   fig_dir / 'leakage_mitigation_leak_compare_cd_plot.pdf', ignore_non_significance=True)
 
+
+    # Stat plots
+    all_res['state'] = 'no leak'
+    all_res.loc[all_res.dataset.isin(datasets_that_leak), 'state'] = 'leak'
+
+    no_compare_att = ['folds', 'state', 'dataset', 'eval_metric_name', 'problem_type']
+
+    for att in all_res.columns:
+        if att in no_compare_att:
+            continue
+
+        _distribution_plot(all_res,
+                           x_col=att, y_col="state",
+                           x_label=att, y_label="State",
+                           save_path= None,
+                           baseline_val=all_res[att].mean(),
+                           overwrite_xlim=None,
+                           xlim_max=None,
+                           baseline_name="Average All Dataset",
+                           dot_name=f"{att}",
+                           sort_by=None,
+                           figsize=(12, 10))
+    print()
     # TODO: difference between distribution of all parameters for leak and non-leak datasets.
     #   (across al task types or first just for one task type)
 

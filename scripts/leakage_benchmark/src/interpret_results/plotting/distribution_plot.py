@@ -30,7 +30,7 @@ def _normalize_performance(ppd, baseline_algorithm, higher_is_better, delta=0.00
     return ppd.apply(normalize_function, axis=1)
 
 
-def _distribution_plot(plot_df, x_col, y_col, x_label, y_label, save_path, baseline_val, baseline_name,
+def _distribution_plot(plot_df, x_col, y_col, x_label, y_label, save_path, baseline_val=None, baseline_name=None,
                        dot_name="Performance", figsize=(12, 6), title="", baseline_color="red", significance_map=None,
                        overwrite_xlim=None, xlim_min=-0.1, xlim_max=None, sort_by=None):
     fig, ax = plt.subplots(figsize=figsize)
@@ -86,11 +86,11 @@ def _distribution_plot(plot_df, x_col, y_col, x_label, y_label, save_path, basel
     plt.ylabel(y_label + " [#Points Left of x-axis limit]" if ot_used else y_label)
     plt.tight_layout()
 
-    plt.savefig(save_path)
+    # plt.savefig(save_path)
 
     # plt.xlabel(x_label + " | " + title)
-    # plt.show()
-    plt.close()
+    plt.show()
+    # plt.close()
 
 
 def normalized_improvement_distribution_plot(performance_per_dataset, maximize_metric, baseline_name, output_path):
