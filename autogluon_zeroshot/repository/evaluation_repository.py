@@ -258,8 +258,8 @@ class EvaluationRepository(SaveLoadMixin):
         if problem_type in ["multiclass", "binary"]:
             label_map = {k: v for k, v in zip(task_ground_truth_metadata['ordered_class_labels'],
                                               task_ground_truth_metadata['ordered_class_labels_transformed'])}
-            y_train = y_train.apply(lambda x: label_map[x])
-            y_test = y_test.apply(lambda x: label_map[x])
+            y_train = y_train.map(label_map)
+            y_test = y_test.map(label_map)
         elif problem_type == "regression":
             pass
         else:

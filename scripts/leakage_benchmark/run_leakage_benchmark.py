@@ -57,19 +57,18 @@ def analyze_starter(repo: EvaluationRepositoryZeroshot, lbc: LeakageBenchmarkCon
     print(f'n_datasets={n_datasets}')
 
     # Loop over datasets for benchmark
-    all_results = []
+    file_dir = pathlib.Path(__file__).parent.resolve() / 'output' / 'fold_results_per_dataset'
+    file_dir.mkdir(parents=True, exist_ok=True)
+
     for dataset_num, dataset in enumerate(lbc.datasets, start=1):
         print(f"Start Dataset Number {dataset_num}/{n_datasets}")
         fold_results = []
         for fold in repo.folds:
             fold_results.append(_leakage_analysis(repo, lbc, dataset, fold))
-        all_results.append(fold_results)
 
-    # Save results for now
-    file_dir = pathlib.Path(__file__).parent.resolve() / 'output'
-    file_dir.mkdir(parents=True, exist_ok=True)
-    with open(file_dir / 'results.pkl', 'wb') as f:
-        pickle.dump(all_results, f)
+        # Save results for fold
+        with open(file_dir / f'fold_results_{dataset}.pkl', 'wb') as f:
+            pickle.dump(fold_results, f)
 
 
 if __name__ == '__main__':
@@ -80,6 +79,6 @@ if __name__ == '__main__':
     ).to_zeroshot()
     init_lbc = LeakageBenchmarkConfig(
         l1_models=None,
-        datasets=_dataset_subset_filter(repository)  # airlines,'wine_quality', 'balance-scale', 'adult'
+        datasets=repository.dataset_names()
     )
     analyze_starter(repo=repository, lbc=init_lbc)
