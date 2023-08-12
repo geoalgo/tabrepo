@@ -2,7 +2,7 @@
 #include <array>
 #include <limits>
 #include <vector>
-
+#include <cstdint>
 
 inline uint32_t mantissa(uint32_t a) { return a & 0x7FFFFF; }
 

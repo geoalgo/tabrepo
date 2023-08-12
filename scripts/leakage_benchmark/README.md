@@ -1,3 +1,8 @@
+# Install
+
+* Clone Lennart's fork of AutoGluon and do a dev install (in AutoGluon dir, `./full_install`)
+* Install dependencies for the zeroshot repo (in Zeroshot dir with the correct env, `python -m pip install -e .`) 
+
 # Notes regarding the simulation of stacking with AutoGluon 
 
 ## Monotonic Constraints 
