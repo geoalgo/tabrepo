@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import List, Dict, Tuple, Any
+from functools import partial
 
 import pandas as pd
 import numpy as np
@@ -74,6 +75,8 @@ class LeakageBenchmarkFoldResults:
     l2_leaderboard_df: pd.DataFrame
     custom_meta_data: Dict[str, Any]
     leaderboard_df_cols = {'model', 'score_test', 'score_val'}
+
+    is_close_func = partial(np.isclose, atol=1e-03, rtol=1e-05)
 
     def __post_init__(self):
         for l_b in [self.l1_leaderboard_df, self.l2_leaderboard_df]:
@@ -207,7 +210,7 @@ class LeakageBenchmarkFoldResults:
         if self.l1_leaderboard_df['score_val'].max() <= l2_score_val:
 
             # As intended
-            if l1_test_score <= l2_test_score:
+            if (l1_test_score <= l2_test_score) or self.is_close_func(l1_test_score, l2_test_score):
                 return 0
             else:
                 # Failure case for l2 validation
@@ -238,15 +241,14 @@ class LeakageBenchmarkFoldResults:
             ('leak_strength/GBM', penalty_leak_measure),
         ]
 
-    @staticmethod
-    def misfit(s_val, s_test, min_abs_gap=1e-05, min_rel_gap=1e-05):
+    def misfit(self, s_val, s_test):
         """How to interpret misfit:
 
         Overfitting occurs when misfit>0 and underfitting when misfit<0.
         For misfit=0 we do not misfit and our validation and test score align perfectly.
         """
 
-        if np.isclose(s_val, s_test, rtol=min_rel_gap, atol=min_abs_gap):
+        if self.is_close_func(s_val, s_test):
             return 0
 
         if s_test == 0:
@@ -271,8 +273,6 @@ class LeakageBenchmarkFoldResults:
         If l2_model is None, we pick the best l2 models (according to validation score) as our l2 model - simulating
         default model selection behavior.
         """
-
-        l1_df = self.l1_leaderboard_df
         l2_df = self.l2_leaderboard_df
 
         if l2_model is None:

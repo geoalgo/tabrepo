@@ -61,6 +61,9 @@ def analyze_starter(repo: EvaluationRepositoryZeroshot, lbc: LeakageBenchmarkCon
     file_dir.mkdir(parents=True, exist_ok=True)
 
     for dataset_num, dataset in enumerate(lbc.datasets, start=1):
+        if (file_dir / f'fold_results_{dataset}.pkl').exists():
+            continue
+
         print(f"Start Dataset Number {dataset_num}/{n_datasets}")
         fold_results = []
         for fold in repo.folds:

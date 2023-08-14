@@ -244,7 +244,20 @@ class EvaluationRepository(SaveLoadMixin):
         # Verify repo and data correct split
         y_train = task_ground_truth_metadata['y_val']  # technically y_val but for the sake of this y_train
         y_test = task_ground_truth_metadata['y_test']
-        assert bool(np.setdiff1d(y_train.index.to_numpy(), train_data.index.to_numpy())) is False
+
+        # FIXME: find how autogluon does this and use its approach here instead of mine
+        if bool(np.setdiff1d(y_train.index.to_numpy(), train_data.index.to_numpy())):
+            diff = np.setdiff1d(y_train.index.to_numpy(), train_data.index.to_numpy())
+            uniques, counts = np.unique(y_train, return_counts=True)
+            train_data[train_data[label] == y_train[diff[0]]]
+            if (len(diff) == 1) and (diff[0]) and (counts[np.where(uniques == y_train[diff[0]])[0][0]] == 2):
+                # Happens due to oversampling for cross-validation.
+                # Hence, we duplicate the row that was duplicated before.
+                duplicated_index = y_train.index[np.where(y_train == y_train[diff[0]])[0][0]]
+                train_data.loc[diff[0], :] = train_data.loc[duplicated_index, :]
+            else:
+                raise ValueError(f"Train data does not match stored data: {diff}")
+
         assert bool(np.setdiff1d(y_test.index.to_numpy(), test_data.index.to_numpy())) is False
 
         # Preprocess like AutoGluon
