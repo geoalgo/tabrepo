@@ -31,21 +31,24 @@ def _read_fold_results() -> [List[LeakageBenchmarkResults], List[List[LeakageBen
 
 
 def _run():
+    leak_baseline = 'GBM'  # in ['GBM', 'GBM-MC']
+
     fig_dir = BASE_PATH / 'figures'
     fig_dir.mkdir(exist_ok=True, parents=True)
 
     res, data = _read_fold_results()
     all_res = pd.concat([r.results_df for r in res])
     performance_per_dataset = pd.concat(
-        [r.leak_overview_df.drop(index=['all_l2_models'])[['test_score']].T.rename(index=dict(test_score=r.dataset))
-         for r in res])
+        [r.leak_overview_df.drop(index=['all_l2_models'])[['simulate_test_score']].T.rename(
+            index=dict(simulate_test_score=r.dataset)) for r in res])
     overall_datasets_that_leak = []
     for task_type in all_res['problem_type'].unique():
         print(f"### Task type: {task_type}")
         task_res = all_res[all_res['problem_type'] == task_type]
-        datasets_that_leak = task_res.loc[task_res['relative_test_loss_by_leak/GBM'] > 0, 'dataset']
-        loss_for_leak_ds = task_res[task_res['dataset'].isin(datasets_that_leak)]['relative_test_loss_by_leak/GBM']
-        gap_for_leak_ds = task_res[task_res['dataset'].isin(datasets_that_leak)]['misfit_gap_measure/GBM']
+        datasets_that_leak = task_res.loc[task_res[f'relative_test_loss_by_leak/{leak_baseline}'] > 0, 'dataset']
+        loss_for_leak_ds = task_res[task_res['dataset'].isin(datasets_that_leak)][f'relative_test_loss_by_leak/{leak_baseline}']
+        gap_for_leak_ds = task_res[task_res['dataset'].isin(datasets_that_leak)][f'misfit_gap_measure/{leak_baseline}']
+        overall_datasets_that_leak.extend(datasets_that_leak)
 
         print(f"The following {len(list(datasets_that_leak))}/{len(task_res)} datasets leak for LightGBM",
               list(datasets_that_leak),
@@ -63,52 +66,61 @@ def _run():
         cd_evaluation(performance_per_dataset[performance_per_dataset.index.isin(datasets_that_leak)], True,
                       fig_dir / task_type / 'leakage_mitigation_leak_compare_cd_plot.pdf', ignore_non_significance=True)
 
-        # Stat plots
-        task_res['state'] = 'no leak'
-        task_res.loc[task_res.dataset.isin(datasets_that_leak), 'state'] = 'leak'
+        # # Stat plots
+        # task_res['state'] = 'X'
+        # task_res.loc[task_res.dataset.isin(datasets_that_leak), 'state'] = 'leak'
+        #
+        # no_compare_att = ['folds', 'state', 'dataset', 'eval_metric_name', 'problem_type']
+        # no_compare_att += task_res.columns[task_res.isna().any()].tolist()
+        #
+        # for att in all_res.columns:
+        #     if att in no_compare_att:
+        #         continue
+        #
+        #     _distribution_plot(task_res,
+        #                        x_col=att, y_col="state",
+        #                        x_label=att, y_label="State",
+        #                        save_path=None,
+        #                        baseline_val=task_res[att].mean(),
+        #                        overwrite_xlim=None,
+        #                        xlim_max=None,
+        #                        baseline_name="Average All Dataset",
+        #                        dot_name=f"{att}",
+        #                        sort_by=None,
+        #                        figsize=(12, 10))
 
-        no_compare_att = ['folds', 'state', 'dataset', 'eval_metric_name', 'problem_type']
-        no_compare_att += task_res.columns[task_res.isna().any()].tolist()
-        overall_datasets_that_leak.extend(datasets_that_leak)
+    # # Plot leakage prevention quality (overall)
+    # cd_evaluation(performance_per_dataset, True,
+    #               fig_dir / 'leakage_mitigation_all_compare_cd_plot.pdf',
+    #               ignore_non_significance=True)
+    #
+    # # Plot leaks only
+    # cd_evaluation(performance_per_dataset[performance_per_dataset.index.isin(overall_datasets_that_leak)], True,
+    #               fig_dir / 'leakage_mitigation_leak_compare_cd_plot.pdf', ignore_non_significance=True)
 
-        for att in all_res.columns:
-            if att in no_compare_att:
-                continue
-
-            _distribution_plot(task_res,
-                               x_col=att, y_col="state",
-                               x_label=att, y_label="State",
-                               save_path=None,
-                               baseline_val=task_res[att].mean(),
-                               overwrite_xlim=None,
-                               xlim_max=None,
-                               baseline_name="Average All Dataset",
-                               dot_name=f"{att}",
-                               sort_by=None,
-                               figsize=(12, 10))
-
-    # --- Overall compare for all shared cols
-    print(f"Overall {len(overall_datasets_that_leak)}/{len(all_res)} Datasets Leak")
-    all_res['state'] = 'no leak'
-    all_res.loc[all_res.dataset.isin(overall_datasets_that_leak), 'state'] = 'leak'
-
-    no_compare_att = ['folds', 'state', 'dataset', 'eval_metric_name', 'problem_type']
-    no_compare_att += all_res.columns[all_res.isna().any()].tolist()
-    for att in all_res.columns:
-        if att in no_compare_att:
-            continue
-
-        _distribution_plot(all_res,
-                           x_col=att, y_col="state",
-                           x_label=att, y_label="State",
-                           save_path=None,
-                           baseline_val=all_res[att].mean(),
-                           overwrite_xlim=None,
-                           xlim_max=None,
-                           baseline_name="Average All Dataset",
-                           dot_name=f"{att}",
-                           sort_by=None,
-                           figsize=(12, 10))
+    # # --- Overall compare for all shared cols
+    # print(f"Overall {len(overall_datasets_that_leak)}/{len(all_res)} Datasets Leak")
+    # all_res['state'] = 'X'
+    # # all_res.loc[all_res.dataset.isin(overall_datasets_that_leak), 'state'] = 'leak'
+    #
+    # no_compare_att = ['folds', 'state', 'dataset', 'eval_metric_name', 'problem_type']
+    # no_compare_att += all_res.columns[all_res.isna().any()].tolist()
+    # for att in all_res.columns:
+    #     if att in no_compare_att:
+    #         continue
+    #
+    #     _distribution_plot(all_res,
+    #                        x_col=att, y_col="state",
+    #                        x_label=att, y_label="State",
+    #                        save_path=None,
+    #                        baseline_val=all_res[att].mean(),
+    #                        overwrite_xlim=None,
+    #                        xlim_max=None,
+    #                        xlim=False,
+    #                        baseline_name="Average All Dataset",
+    #                        dot_name=f"{att}",
+    #                        sort_by=None,
+    #                        figsize=(12, 10))
 
 
 if __name__ == '__main__':

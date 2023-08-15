@@ -32,10 +32,13 @@ def _normalize_performance(ppd, baseline_algorithm, higher_is_better, delta=0.00
 
 def _distribution_plot(plot_df, x_col, y_col, x_label, y_label, save_path, baseline_val=None, baseline_name=None,
                        dot_name="Performance", figsize=(12, 6), title="", baseline_color="red", significance_map=None,
-                       overwrite_xlim=None, xlim_min=-0.1, xlim_max=None, sort_by=None):
+                       overwrite_xlim=None, xlim_min=-0.1, xlim_max=None, sort_by=None, xlim=True):
     fig, ax = plt.subplots(figsize=figsize)
 
-    xlim = min(list(plot_df.groupby(y_col)[x_col].apply(lambda x: boxplot_stats(x).pop(0)["whislo"])))
+    if xlim:
+        xlim = min(list(plot_df.groupby(y_col)[x_col].apply(lambda x: boxplot_stats(x).pop(0)["whislo"])))
+    else:
+        xlim = min(plot_df[x_col])
     if xlim < 0:
         xlim *= 1.25
     if xlim_min is not None:

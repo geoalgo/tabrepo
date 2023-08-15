@@ -232,13 +232,17 @@ class LeakageBenchmarkFoldResults:
     def leak_measures(self) -> List[Tuple[str, float]]:
         m_gbm = self.l2_misfit_gap_measure('LightGBM_BAG_L2')
         l_gbm = self.relative_test_score_loss_by_leak('LightGBM_BAG_L2')
-
-        penalty_leak_measure = m_gbm if l_gbm > 0 else 0
+        m_gbm_mc = self.l2_misfit_gap_measure('LightGBM_monotonic_BAG_L2')
+        l_gbm_mc = self.relative_test_score_loss_by_leak('LightGBM_monotonic_BAG_L2')
 
         return [
             ('misfit_gap_measure/GBM', m_gbm),
             ('relative_test_loss_by_leak/GBM', l_gbm),
-            ('leak_strength/GBM', penalty_leak_measure),
+            ('leak_strength/GBM', m_gbm if l_gbm > 0 else 0),
+
+            ('misfit_gap_measure/GBM-MC', m_gbm_mc),
+            ('relative_test_loss_by_leak/GBM-MC', l_gbm_mc),
+            ('leak_strength/GBM-MC', m_gbm_mc if l_gbm_mc > 0 else 0),
         ]
 
     def misfit(self, s_val, s_test):
@@ -294,14 +298,18 @@ class LeakageBenchmarkFoldResults:
         return pd.DataFrame([v_list], columns=c_list)
 
     def get_leak_overview_df(self) -> pd.DataFrame:
-        col_name = ['l2', 'test_score', 'val_score', 'relative_test_score_loss_by_leak', 'leakage_misfit_gap_measure']
-        full_l2_row = ['all_l2_models', self.simulate_score(), self.simulate_score(score='validation'),
+        col_name = ['l2', 'test_score', 'val_score', 'simulate_test_score', 'simulate_val_score',
+                    'relative_test_score_loss_by_leak', 'leakage_misfit_gap_measure']
+        full_l2_row = ['all_l2_models', np.nan, np.nan,
+                       self.simulate_score(), self.simulate_score(score='validation'),
                        self.relative_test_score_loss_by_leak(), self.l2_misfit_gap_measure()]
 
         res = [full_l2_row]
         for l2_model in self.l2_models:
             row = [
                 l2_model,
+                self.l2_leaderboard_df.loc[self.l2_leaderboard_df['model'] == l2_model, 'score_test'].iloc[0],
+                self.l2_leaderboard_df.loc[self.l2_leaderboard_df['model'] == l2_model, 'score_val'].iloc[0],
                 self.simulate_score(l2_model),
                 self.simulate_score(l2_model, score='validation'),
                 self.relative_test_score_loss_by_leak(l2_model),

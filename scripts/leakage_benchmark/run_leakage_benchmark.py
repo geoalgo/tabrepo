@@ -13,13 +13,13 @@ def _leakage_analysis(repo, lbc, dataset, fold) -> LeakageBenchmarkFoldResults:
     # L1
     l2_X_train, y_train, l2_X_test, y_test, eval_metric, oof_col_names, l1_results, l1_feature_metadata = \
         obtain_input_data_for_l2(repo, lbc.l1_models, dataset, fold)
-    LeakageBenchmarkFoldResults.print_leaderboard(l1_results)
+    LeakageBenchmarkFoldResults.print_leaderboard(l1_results.sort_values(by='score_val', ascending=True))
 
     # L2
     l2_results, custom_meta_data = autogluon_l2_runner(lbc.l2_models, l2_X_train, y_train, l2_X_test, y_test,
                                                        eval_metric, oof_col_names, l1_feature_metadata,
                                                        problem_type=eval_metric.problem_type)
-    LeakageBenchmarkFoldResults.print_leaderboard(l2_results)
+    # LeakageBenchmarkFoldResults.print_leaderboard(l2_results)
 
     results = LeakageBenchmarkFoldResults(
         fold=fold,
@@ -28,6 +28,7 @@ def _leakage_analysis(repo, lbc, dataset, fold) -> LeakageBenchmarkFoldResults:
         l2_leaderboard_df=l2_results,
         custom_meta_data=custom_meta_data
     )
+    results.print_leaderboard(results.get_leak_overview_df())
     # print(results.custom_meta_data)
     print('... done.')
 
@@ -46,7 +47,7 @@ def _dataset_subset_filter(repo):
     return dataset_subset
 
 
-def analyze_starter(repo: EvaluationRepositoryZeroshot, lbc: LeakageBenchmarkConfig):
+def analyze_starter(repo: EvaluationRepositoryZeroshot, lbc: LeakageBenchmarkConfig, store_results=False):
     # Init
     lbc.repo_init(repo)
 
@@ -61,7 +62,7 @@ def analyze_starter(repo: EvaluationRepositoryZeroshot, lbc: LeakageBenchmarkCon
     file_dir.mkdir(parents=True, exist_ok=True)
 
     for dataset_num, dataset in enumerate(lbc.datasets, start=1):
-        if (file_dir / f'fold_results_{dataset}.pkl').exists():
+        if (file_dir / f'fold_results_{dataset}.pkl').exists() and store_results:
             continue
 
         print(f"Start Dataset Number {dataset_num}/{n_datasets}")
@@ -70,8 +71,9 @@ def analyze_starter(repo: EvaluationRepositoryZeroshot, lbc: LeakageBenchmarkCon
             fold_results.append(_leakage_analysis(repo, lbc, dataset, fold))
 
         # Save results for fold
-        with open(file_dir / f'fold_results_{dataset}.pkl', 'wb') as f:
-            pickle.dump(fold_results, f)
+        if store_results:
+            with open(file_dir / f'fold_results_{dataset}.pkl', 'wb') as f:
+                pickle.dump(fold_results, f)
 
 
 if __name__ == '__main__':
