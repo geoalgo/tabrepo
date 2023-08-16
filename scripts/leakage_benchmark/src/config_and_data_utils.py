@@ -29,28 +29,28 @@ class LeakageBenchmarkConfig:
     def default_l2(self):
         return {
             'GBM': [
+                # {},
+                # {'monotone_constraints_for_stack_features': True,
+                #  'ag_args': {'name_suffix': '_mc'}},
+                # {'monotone_constraints_for_stack_features': True, 'stack_feature_interactions_map': True,
+                #  'ag_args': {'name_suffix': '_mc_int'}},
+                # {'only_correct_instances': True, 'ag_args': {'name_suffix': '_OCI'}},
+                # {'random_noise_for_stack': True, 'ag_args': {'name_suffix': '_noise_dummy'}},
+                # {'drop_duplicates': True, 'ag_args': {'name_suffix': '_dd'}},
+            ],
+            'XGB': [
+                # {},
+                # {'monotone_constraints_for_stack_features': True,
+                #  'ag_args': {'name_suffix': '_mc'}},
+                # {'monotone_constraints_for_stack_features': True, 'stack_feature_interactions_map': True,
+                #  'ag_args': {'name_suffix': '_mc_int'}},
+            ],
+            'CAT': [
                 {},
                 {'monotone_constraints_for_stack_features': True,
-                 'monotone_constraints_method': 'advanced',
-                 'monotone_penalty': 0,
-                 'stack_feature_interactions_map': True,
-                 'ag_args': {'name_suffix': '_mc_int'}},
-                # {'only_correct_instances': True, 'ag_args': {'name_suffix': '_OCI'}},
-                {'random_noise_for_stack': True, 'ag_args': {'name_suffix': '_noise_dummy'}},
-                {
-                    'monotone_constraints_for_stack_features': True,
-                    'monotone_constraints_method': 'advanced', 'ag_args': {'name_suffix': '_monotonic'},
-                    'monotone_penalty': 0,
-                },
-                # {'drop_duplicates': True, 'ag_args': {'name_suffix': '_dd'}},
-                # {
-                #     'drop_duplicates': True,
-                #     'monotone_constraints_for_stack_features': True,
-                #     'monotone_constraints_method': 'advanced', 'ag_args': {'name_suffix': '_monotonic_dd'},
-                #     'monotone_penalty': 0,
-                #
-                # },
+                 'ag_args': {'name_suffix': '_mc'}},
             ]
+
         }
 
     def repo_init(self, repo):
@@ -110,12 +110,15 @@ class LeakageBenchmarkFoldResults:
         return [
             ('fold', self.fold),
             ('dataset', self.dataset),
-            ('eval_metric_name', self.custom_meta_data['eval_metric_name']),
-            ('problem_type', self.custom_meta_data['problem_type']),
+            ('eval_metric_name', self.custom_meta_data.get('eval_metric_name', 'Unknown')),
+            ('problem_type', self.custom_meta_data.get('problem_type', 'Unidentified')),
         ]
 
     @property
     def _basic_meta_data(self) -> List[Tuple[str, Any]]:
+        if not self.custom_meta_data:
+            return []
+
         return [
             ('n_features', self.custom_meta_data['n_columns']),
             ('train/n_instances', self.custom_meta_data['train_n_instances']),
@@ -137,6 +140,8 @@ class LeakageBenchmarkFoldResults:
 
     @property
     def _leakage_indicator_meta_data(self) -> List[Tuple[str, Any]]:
+        if not self.custom_meta_data:
+            return []
 
         if self.custom_meta_data['problem_type'] != 'binary':
             return []

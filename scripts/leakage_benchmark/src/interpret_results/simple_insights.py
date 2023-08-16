@@ -66,6 +66,10 @@ def _run():
         cd_evaluation(performance_per_dataset[performance_per_dataset.index.isin(datasets_that_leak)], True,
                       fig_dir / task_type / 'leakage_mitigation_leak_compare_cd_plot.pdf', ignore_non_significance=True)
 
+        # Plot no leaks only
+        cd_evaluation(performance_per_dataset[~performance_per_dataset.index.isin(datasets_that_leak)], True,
+                      fig_dir / task_type / 'leakage_mitigation_no_leak_compare_cd_plot.pdf', ignore_non_significance=True)
+
         # # Stat plots
         # task_res['state'] = 'X'
         # task_res.loc[task_res.dataset.isin(datasets_that_leak), 'state'] = 'leak'
