@@ -30,6 +30,11 @@ class LeakageBenchmarkConfig:
         return {
             'GBM': [
                 {},
+                {'monotone_constraints_for_stack_features': True,
+                 'monotone_constraints_method': 'advanced',
+                 'monotone_penalty': 0,
+                 'stack_feature_interactions_map': True,
+                 'ag_args': {'name_suffix': '_mc_int'}},
                 # {'only_correct_instances': True, 'ag_args': {'name_suffix': '_OCI'}},
                 {'random_noise_for_stack': True, 'ag_args': {'name_suffix': '_noise_dummy'}},
                 {
