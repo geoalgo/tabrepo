@@ -81,7 +81,24 @@ class LeakageBenchmarkFoldResults:
     custom_meta_data: Dict[str, Any]
     leaderboard_df_cols = {'model', 'score_test', 'score_val'}
 
-    is_close_func = partial(np.isclose, atol=1e-03, rtol=1e-05)
+    @property
+    def score_optimum(self):
+        eval_metric = self.custom_meta_data.get('eval_metric_name', 'missing')
+        if eval_metric == 'roc_auc':
+            return 1
+        elif eval_metric in ['root_mean_squared_error', 'log_loss']:
+            return 0
+        elif eval_metric == 'missing':
+            return 1  # FIXME warn maybe here
+        else:
+            raise ValueError(f'Unknown eval metric {eval_metric}')
+
+    def to_loss(self, score):
+        return abs(self.score_optimum - score)
+
+    def is_close_func(self, x, y):
+        # np.isclose(x, y, atol=1e-03, rtol=1e-08)
+        return x == y
 
     def __post_init__(self):
         for l_b in [self.l1_leaderboard_df, self.l2_leaderboard_df]:
@@ -224,7 +241,11 @@ class LeakageBenchmarkFoldResults:
                 return 0
             else:
                 # Failure case for l2 validation
-                return (l1_test_score - l2_test_score) / (abs(l1_test_score) if l1_test_score != 0 else EPS)
+                l1_loss = self.to_loss(l1_test_score)
+                l2_loss = self.to_loss(l2_test_score)
+                point_of_reference = l2_loss if l2_loss != 0 else EPS
+
+                return (l2_loss - l1_loss) / point_of_reference
 
         # - else self.l1_leaderboard_df['score_val'].max() > l2_score_val
         # Valid behavior but stacking did not work well either way.
@@ -240,20 +261,20 @@ class LeakageBenchmarkFoldResults:
 
     @property
     def leak_measures(self) -> List[Tuple[str, float]]:
-        m_gbm = self.l2_misfit_gap_measure('LightGBM_BAG_L2')
-        l_gbm = self.relative_test_score_loss_by_leak('LightGBM_BAG_L2')
-        m_gbm_mc = self.l2_misfit_gap_measure('LightGBM_monotonic_BAG_L2')
-        l_gbm_mc = self.relative_test_score_loss_by_leak('LightGBM_monotonic_BAG_L2')
+        res = []
+        for l2_model in self.l2_models:
+            m_gbm = self.l2_misfit_gap_measure(l2_model)
+            l_gbm = self.relative_test_score_loss_by_leak(l2_model)
 
-        return [
-            ('misfit_gap_measure/GBM', m_gbm),
-            ('relative_test_loss_by_leak/GBM', l_gbm),
-            ('leak_strength/GBM', m_gbm if l_gbm > 0 else 0),
+            res.extend(
+                [
+                    (f'misfit_gap_measure/{l2_model}', m_gbm),
+                    (f'relative_test_loss_by_leak/{l2_model}', l_gbm),
+                    (f'leak_strength/{l2_model}', m_gbm if l_gbm > 0 else 0),
+                ]
 
-            ('misfit_gap_measure/GBM-MC', m_gbm_mc),
-            ('relative_test_loss_by_leak/GBM-MC', l_gbm_mc),
-            ('leak_strength/GBM-MC', m_gbm_mc if l_gbm_mc > 0 else 0),
-        ]
+            )
+        return res
 
     def misfit(self, s_val, s_test):
         """How to interpret misfit:
@@ -265,10 +286,11 @@ class LeakageBenchmarkFoldResults:
         if self.is_close_func(s_val, s_test):
             return 0
 
-        if s_test == 0:
-            s_test = EPS
+        val_loss = self.to_loss(s_val)
+        test_loss = self.to_loss(s_test)
 
-        return (s_val - s_test) / abs(s_test)
+        return (test_loss - val_loss)
+
 
     def avg_l1_misfit(self):
         _avg = []
@@ -279,7 +301,8 @@ class LeakageBenchmarkFoldResults:
             s_test_l1 = l1_df.loc[l1_df['model'] == l1_model, 'score_test'].iloc[0]
             _avg.append(self.misfit(s_val_l1, s_test_l1))
 
-        return np.mean(_avg)
+        _avg = np.mean(_avg)
+        return _avg if _avg != 0 else EPS
 
     def l2_misfit_gap_measure(self, l2_model: str | None = None) -> float:
         """Measure the amount of misfit per dataset based on gap between validation and test score in l2 relative to l1
@@ -295,7 +318,9 @@ class LeakageBenchmarkFoldResults:
         s_val_l2 = l2_df.loc[l2_df['model'] == l2_model, 'score_val'].iloc[0]
         s_test_l2 = l2_df.loc[l2_df['model'] == l2_model, 'score_test'].iloc[0]
 
-        return self.misfit(s_val_l2, s_test_l2) - self.avg_l1_misfit()
+
+        por = self.avg_l1_misfit()
+        return (self.misfit(s_val_l2, s_test_l2) - por)/abs(por)
 
     def get_fold_df(self) -> pd.DataFrame:
         """Aggregate all collected data to specific values per fold"""

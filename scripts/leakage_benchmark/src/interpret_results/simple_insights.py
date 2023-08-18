@@ -31,44 +31,51 @@ def _read_fold_results() -> [List[LeakageBenchmarkResults], List[List[LeakageBen
 
 
 def _run():
-    leak_baseline = 'GBM'  # in ['GBM', 'GBM-MC']
-
     fig_dir = BASE_PATH / 'figures'
     fig_dir.mkdir(exist_ok=True, parents=True)
 
     res, data = _read_fold_results()
+    l2_models = res[0].l2_models
     all_res = pd.concat([r.results_df for r in res])
     performance_per_dataset = pd.concat(
         [r.leak_overview_df.drop(index=['all_l2_models'])[['simulate_test_score']].T.rename(
             index=dict(simulate_test_score=r.dataset)) for r in res])
-    overall_datasets_that_leak = []
     for task_type in all_res['problem_type'].unique():
         print(f"### Task type: {task_type}")
         task_res = all_res[all_res['problem_type'] == task_type]
-        datasets_that_leak = task_res.loc[task_res[f'relative_test_loss_by_leak/{leak_baseline}'] > 0, 'dataset']
-        loss_for_leak_ds = task_res[task_res['dataset'].isin(datasets_that_leak)][f'relative_test_loss_by_leak/{leak_baseline}']
-        gap_for_leak_ds = task_res[task_res['dataset'].isin(datasets_that_leak)][f'misfit_gap_measure/{leak_baseline}']
-        overall_datasets_that_leak.extend(datasets_that_leak)
-
-        print(f"The following {len(list(datasets_that_leak))}/{len(task_res)} datasets leak for LightGBM",
-              list(datasets_that_leak),
-              f"\nFor these datasets, the leak reduces the score from min {loss_for_leak_ds.min() * 100:.3f}% "
-              f"to max {loss_for_leak_ds.max() * 100:.3f}% (avg.: {loss_for_leak_ds.mean() * 100:.3f}%).",
-              f"\nMoreover, the gap between validation and test score increases on average by {gap_for_leak_ds.mean() * 100:.3f}%.")
-
         # Plot leakage prevention quality (overall)
+        print('Overall Plot')
         (fig_dir / task_type).mkdir(exist_ok=True, parents=True)
         cd_evaluation(performance_per_dataset[performance_per_dataset.index.isin(task_res['dataset'])], True,
                       fig_dir / task_type / 'leakage_mitigation_all_compare_cd_plot.pdf',
                       ignore_non_significance=True)
 
-        # Plot leaks only
-        cd_evaluation(performance_per_dataset[performance_per_dataset.index.isin(datasets_that_leak)], True,
-                      fig_dir / task_type / 'leakage_mitigation_leak_compare_cd_plot.pdf', ignore_non_significance=True)
+        for leak_baseline in l2_models:
+            print(f'\n## For Method: {leak_baseline}')
+            datasets_that_leak = task_res.loc[task_res[f'relative_test_loss_by_leak/{leak_baseline}'] > 0, 'dataset']
+            loss_for_leak_ds = task_res[task_res['dataset'].isin(datasets_that_leak)][
+                f'relative_test_loss_by_leak/{leak_baseline}']
+            gap_for_leak_ds = task_res[task_res['dataset'].isin(datasets_that_leak)][
+                f'misfit_gap_measure/{leak_baseline}']
 
-        # Plot no leaks only
-        cd_evaluation(performance_per_dataset[~performance_per_dataset.index.isin(datasets_that_leak)], True,
-                      fig_dir / task_type / 'leakage_mitigation_no_leak_compare_cd_plot.pdf', ignore_non_significance=True)
+            print(f"The following {len(list(datasets_that_leak))}/{len(task_res)} datasets leak for {leak_baseline}",
+                  list(datasets_that_leak),
+                  f"\nFor these datasets, the leak increases the error from min {loss_for_leak_ds.min() * 100:.3f}% "
+                  f"to max {loss_for_leak_ds.max() * 100:.3f}% (avg.: {loss_for_leak_ds.mean() * 100:.3f}%).",
+                  f"\nMoreover, the gap between validation and test loss increases on average by {gap_for_leak_ds.mean() * 100:.3f}%.")
+
+            # if len(datasets_that_leak) < 3:
+            #     print('Not enough dataset that leak for CD plots!')
+            #     continue
+            # # Plot this leaks only
+            # cd_evaluation(performance_per_dataset[performance_per_dataset.index.isin(datasets_that_leak)], True,
+            #               fig_dir / task_type / 'leakage_mitigation_leak_compare_cd_plot.pdf',
+            #               ignore_non_significance=True)
+            #
+            # # Plot no leaks only
+            # cd_evaluation(performance_per_dataset[~performance_per_dataset.index.isin(datasets_that_leak)], True,
+            #               fig_dir / task_type / 'leakage_mitigation_no_leak_compare_cd_plot.pdf',
+            #               ignore_non_significance=True)
 
         # # Stat plots
         # task_res['state'] = 'X'
