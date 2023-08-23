@@ -24,38 +24,52 @@ class LeakageBenchmarkConfig:
     l1_models: List[str] | None = None
     l2_models: Dict[str, List[Dict]] | None = None
     datasets: List[str] | None = None
+    compute_meta_data:  bool = False
+    debug_mode: bool = False
+    plot_insights: bool = False
 
     @property
     def default_l2(self):
         return {
             'GBM': [
-                # {},
-                # {'monotone_constraints_for_stack_features': True,
-                #  'ag_args': {'name_suffix': '_mc'}},
-                # {'monotone_constraints_for_stack_features': True, 'stack_feature_interactions_map': True,
-                #  'ag_args': {'name_suffix': '_mc_int'}},
-                # {'only_correct_instances': True, 'ag_args': {'name_suffix': '_OCI'}},
-                # {'random_noise_for_stack': True, 'ag_args': {'name_suffix': '_noise_dummy'}},
-                # {'drop_duplicates': True, 'ag_args': {'name_suffix': '_dd'}},
-            ],
-            'XGB': [
-                # {},
-                # {'monotone_constraints_for_stack_features': True,
-                #  'ag_args': {'name_suffix': '_mc'}},
-                # {'monotone_constraints_for_stack_features': True, 'stack_feature_interactions_map': True,
-                #  'ag_args': {'name_suffix': '_mc_int'}},
-            ],
-            'CAT': [
                 {},
-                {'monotone_constraints_for_stack_features': True,
-                 'ag_args': {'name_suffix': '_mc'}},
-            ]
+                {'label_flip_constraints':  True, 'ag_args': {'name_suffix': '_lfc'}},
+                {'label_flip_constraints': True, 'test': True, 'ag_args': {'name_suffix': '_lfc_test'}},
+
+                # {'scale_tests': True, 'ag_args': {'name_suffix': '_scale'}},
+                # {'monotone_constraints_for_stack_features': True,
+                # 'ag_args': {'name_suffix': '_mc'}},
+                # {'monotone_constraints_for_stack_features': True, 'label_flip_constraints':  True,
+                #  'ag_args': {'name_suffix': '_mc_lfc'}},
+                # {'monotone_constraints_for_stack_features': True,
+                # 'ag_args': {'name_suffix': '_mc'}},
+                # {'monotone_constraints_for_stack_features': True, 'stack_feature_interactions_map': True,
+                # 'ag_args': {'name_suffix': '_mc_int'}},
+                # {'only_correct_instances': True,
+                #  'ag_args': {'name_suffix': '_OCI'}},
+                # {'random_noise_for_stack': True,
+                #  'ag_args': {'name_suffix': '_noise_dummy'}},
+                # {'drop_duplicates': True,
+                #  'ag_args': {'name_suffix': '_dd'}},
+            ],
+            # 'XGB': [
+            #     {},
+            #     {'monotone_constraints_for_stack_features': True,
+            #      'ag_args': {'name_suffix': '_mc'}},
+            #     {'monotone_constraints_for_stack_features': True, 'stack_feature_interactions_map': True,
+            #      'ag_args': {'name_suffix': '_mc_int'}},
+            # ],
+            # 'CAT': [
+            #     {},
+            #     {'monotone_constraints_for_stack_features': True,
+            #      'ag_args': {'name_suffix': '_mc'}},
+            # ]
 
         }
 
     def repo_init(self, repo):
         """Init the default values for the config based on the repository."""
-        self.l1_models = repo.list_models() if self.l1_models is None else self.l1_models
+        self.l1_models = repo.list_models() if self.l1_models is None else self.l1_models # ['RandomForest_c1_BAG_L1'] #
         self.l2_models = self.default_l2 if self.l2_models is None else self.l2_models
         self.datasets = repo.dataset_names() if self.datasets is None else self.datasets
 

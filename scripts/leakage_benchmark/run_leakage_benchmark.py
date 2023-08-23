@@ -13,13 +13,17 @@ def _leakage_analysis(repo, lbc, dataset, fold) -> LeakageBenchmarkFoldResults:
     # L1
     l2_X_train, y_train, l2_X_test, y_test, eval_metric, oof_col_names, l1_results, l1_feature_metadata = \
         obtain_input_data_for_l2(repo, lbc.l1_models, dataset, fold)
-    LeakageBenchmarkFoldResults.print_leaderboard(l1_results.sort_values(by='score_val', ascending=True))
-
     # L2
     l2_results, custom_meta_data = autogluon_l2_runner(lbc.l2_models, l2_X_train, y_train, l2_X_test, y_test,
                                                        eval_metric, oof_col_names, l1_feature_metadata,
-                                                       problem_type=eval_metric.problem_type)
+                                                       problem_type=eval_metric.problem_type,
+                                                       get_meta_data=lbc.compute_meta_data,
+                                                       debug=lbc.debug_mode,
+                                                       plot_insights=lbc.plot_insights,
+                                                       best_l1_model=l1_results.iloc[l1_results['score_val'].idxmax(), 0])
+
     # LeakageBenchmarkFoldResults.print_leaderboard(l2_results)
+    LeakageBenchmarkFoldResults.print_leaderboard(l1_results.sort_values(by='score_val', ascending=True))
 
     results = LeakageBenchmarkFoldResults(
         fold=fold,

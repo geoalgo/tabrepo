@@ -4,7 +4,6 @@ import pandas as pd
 import numpy as np
 
 from typing import List, Tuple, Dict
-
 from autogluon.core.metrics import get_metric, Scorer
 from autogluon_zeroshot.repository import EvaluationRepository
 from autogluon.tabular import TabularPredictor
@@ -14,6 +13,7 @@ from autogluon.common.features.feature_metadata import FeatureMetadata
 from scripts.leakage_benchmark.src.config_and_data_utils import L1_PREFIX
 from scripts.leakage_benchmark.src.custom_metadata_funcs import _sub_sample, _get_meta_data
 
+from scripts.leakage_benchmark.src.other.distribution_insights import get_proba_insights
 
 def obtain_input_data_for_l2(repo: EvaluationRepository, l1_models: List[str], dataset: str, fold: int) \
         -> Tuple[pd.DataFrame, np.array, pd.DataFrame, np.array, Scorer, List[str], pd.DataFrame, FeatureMetadata]:
@@ -102,8 +102,10 @@ def _get_l2_feature_metadata(l2_X_train, l2_y_train, oof_col_names, l1_feature_m
 
 
 def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test, eval_metric: Scorer,
-                        oof_col_names: List[str], l1_feature_metadata: FeatureMetadata, get_meta_data: bool = True,
-                        sub_sample_data: bool = False, problem_type: str | None = None) -> Tuple[pd.DataFrame, Dict]:
+                        oof_col_names: List[str], l1_feature_metadata: FeatureMetadata, get_meta_data: bool = False,
+                        sub_sample_data: bool = False, problem_type: str | None = None, debug: bool = False,
+                        plot_insights: bool = False, best_l1_model: str = None) -> Tuple[
+    pd.DataFrame, Dict]:
     print(f"Start preprocessing L2 data and collect metadata. {l2_X_train.shape}")
     label = "class"
     l2_feature_metadata = _get_l2_feature_metadata(l2_X_train, l2_y_train, oof_col_names, l1_feature_metadata)
@@ -131,9 +133,10 @@ def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test,
         l2_train_data, l2_test_data = _sub_sample(l2_train_data, l2_test_data)
 
     # Run AutoGluon
-    print("Start running AutoGluon on L2 data.")
+    print(f"Start running AutoGluon on L2 data. Debug={debug}")
     predictor = TabularPredictor(eval_metric=eval_metric.name, label=label, verbosity=0, problem_type=problem_type,
                                  learner_kwargs=dict(random_state=1))
+    fit_para = dict(ag_args_ensemble={"fold_fitting_strategy": "sequential_local"}) if debug else dict()
     predictor.fit(
         train_data=l2_train_data,
         hyperparameters=l2_models,
@@ -142,8 +145,26 @@ def autogluon_l2_runner(l2_models, l2_X_train, l2_y_train, l2_X_test, l2_y_test,
         num_bag_folds=8,
         feature_generator=IdentityFeatureGenerator(),
         feature_metadata=l2_feature_metadata,
-        # ag_args_ensemble={"fold_fitting_strategy": "sequential_local"}
+        ag_args_fit=dict(best_l1_model=f'{L1_PREFIX}{best_l1_model}'),
+        **fit_para
     )
+
+    if plot_insights:
+        l2_train_oof = pd.DataFrame(
+            np.array([predictor.get_oof_pred_proba(m, as_multiclass=False).values  for m in predictor.get_model_names()]).T,
+            columns=predictor.get_model_names()
+        )
+        l2_test_oof = pd.DataFrame(
+            np.array([predictor.predict_proba(l2_test_data, model=m, as_multiclass=False, as_pandas=False)
+                      for m in predictor.get_model_names()]).T,
+            columns=predictor.get_model_names()
+        )
+
+        f_cols = [x for x in l2_train_data.columns if x not in oof_col_names + [label]]
+        get_proba_insights(l2_train_data.loc[:, oof_col_names], l2_test_data.loc[:, oof_col_names],
+                           l2_train_oof, l2_test_oof, l2_train_data[label], l2_test_data[label],
+                           l2_train_data.loc[:, f_cols], l2_test_data.loc[:, f_cols],
+                           eval_metric, predictor)
 
     leaderboard_leak = predictor.leaderboard(l2_test_data, silent=True)[['model', 'score_test', 'score_val']]
     leaderboard_leak['model'] = leaderboard_leak['model'].apply(lambda x: x.replace('L1', 'L2'))
