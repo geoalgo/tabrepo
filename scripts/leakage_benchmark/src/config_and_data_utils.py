@@ -24,7 +24,7 @@ class LeakageBenchmarkConfig:
     l1_models: List[str] | None = None
     l2_models: Dict[str, List[Dict]] | None = None
     datasets: List[str] | None = None
-    compute_meta_data:  bool = False
+    compute_meta_data: bool = False
     debug_mode: bool = False
     plot_insights: bool = False
 
@@ -32,23 +32,19 @@ class LeakageBenchmarkConfig:
     def default_l2(self):
         return {
             'GBM': [
+                # {'test': True, 'ag_args': {'name_suffix': '_test'}},
+                {'label_flip_constraints': True, 'ag_args': {'name_suffix': '_lfc'}},
                 {},
-                {'label_flip_constraints':  True, 'ag_args': {'name_suffix': '_lfc'}},
-                {'label_flip_constraints': True, 'test': True, 'ag_args': {'name_suffix': '_lfc_test'}},
-
-                # {'scale_tests': True, 'ag_args': {'name_suffix': '_scale'}},
-                # {'monotone_constraints_for_stack_features': True,
-                # 'ag_args': {'name_suffix': '_mc'}},
-                # {'monotone_constraints_for_stack_features': True, 'label_flip_constraints':  True,
-                #  'ag_args': {'name_suffix': '_mc_lfc'}},
-                # {'monotone_constraints_for_stack_features': True,
-                # 'ag_args': {'name_suffix': '_mc'}},
-                # {'monotone_constraints_for_stack_features': True, 'stack_feature_interactions_map': True,
-                # 'ag_args': {'name_suffix': '_mc_int'}},
+                {'monotone_constraints_for_stack_features': True,
+                 'ag_args': {'name_suffix': '_mc'}},
+                {'monotone_constraints_for_stack_features': True, 'label_flip_constraints': True,
+                 'ag_args': {'name_suffix': '_mc_lfc'}},
+                {'monotone_constraints_for_stack_features': True, 'stack_feature_interactions_map': True,
+                 'ag_args': {'name_suffix': '_mc_int'}},
                 # {'only_correct_instances': True,
                 #  'ag_args': {'name_suffix': '_OCI'}},
-                # {'random_noise_for_stack': True,
-                #  'ag_args': {'name_suffix': '_noise_dummy'}},
+                {'random_noise_for_stack': True,
+                 'ag_args': {'name_suffix': '_noise_dummy'}},
                 # {'drop_duplicates': True,
                 #  'ag_args': {'name_suffix': '_dd'}},
             ],
@@ -69,7 +65,7 @@ class LeakageBenchmarkConfig:
 
     def repo_init(self, repo):
         """Init the default values for the config based on the repository."""
-        self.l1_models = repo.list_models() if self.l1_models is None else self.l1_models # ['RandomForest_c1_BAG_L1'] #
+        self.l1_models = repo.list_models() if self.l1_models is None else self.l1_models  # ['RandomForest_c1_BAG_L1'] #
         self.l2_models = self.default_l2 if self.l2_models is None else self.l2_models
         self.datasets = repo.dataset_names() if self.datasets is None else self.datasets
 
@@ -305,7 +301,6 @@ class LeakageBenchmarkFoldResults:
 
         return (test_loss - val_loss)
 
-
     def avg_l1_misfit(self):
         _avg = []
         l1_df = self.l1_leaderboard_df
@@ -332,9 +327,8 @@ class LeakageBenchmarkFoldResults:
         s_val_l2 = l2_df.loc[l2_df['model'] == l2_model, 'score_val'].iloc[0]
         s_test_l2 = l2_df.loc[l2_df['model'] == l2_model, 'score_test'].iloc[0]
 
-
         por = self.avg_l1_misfit()
-        return (self.misfit(s_val_l2, s_test_l2) - por)/abs(por)
+        return (self.misfit(s_val_l2, s_test_l2) - por) / abs(por)
 
     def get_fold_df(self) -> pd.DataFrame:
         """Aggregate all collected data to specific values per fold"""

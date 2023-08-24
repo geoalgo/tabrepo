@@ -20,7 +20,8 @@ def _leakage_analysis(repo, lbc, dataset, fold) -> LeakageBenchmarkFoldResults:
                                                        get_meta_data=lbc.compute_meta_data,
                                                        debug=lbc.debug_mode,
                                                        plot_insights=lbc.plot_insights,
-                                                       best_l1_model=l1_results.iloc[l1_results['score_val'].idxmax(), 0])
+                                                       l1_model_worst_to_best=list(
+                                                           l1_results.sort_values(by='score_val').iloc[:, 0]))
 
     # LeakageBenchmarkFoldResults.print_leaderboard(l2_results)
     LeakageBenchmarkFoldResults.print_leaderboard(l1_results.sort_values(by='score_val', ascending=True))
@@ -45,7 +46,7 @@ def _dataset_subset_filter(repo):
     for dataset in repo.dataset_names():
         md = repo.dataset_metadata(repo.dataset_to_tid(dataset))
 
-        if md['NumberOfInstances'] <= 100000:
+        if md['NumberOfClasses'] == 2:
             dataset_subset.append(dataset)
 
     return dataset_subset
@@ -81,6 +82,11 @@ def analyze_starter(repo: EvaluationRepositoryZeroshot, lbc: LeakageBenchmarkCon
 
 
 if __name__ == '__main__':
+    known_leaking_binary = ['GAMETES_Epistasis_3-Way_20atts_0_2H_EDM-1_1', 'blood-transfusion-service-center', 'kc2',
+                            'meta', 'Satellite', 'Click_prediction_small',
+                            'Titanic', 'eeg-eye-state', 'GAMETES_Epistasis_2-Way_1000atts_0_4H_EDM-1_EDM-1_1',
+                            'APSFailure', 'numerai28_6',
+                            'kc1', 'pc3', 'pc4', 'airlines', ]
     # Download repository from S3 and cache it locally for re-use in future calls
     repository: EvaluationRepositoryZeroshot = cache_function(
         fun=lambda: EvaluationRepository.load('s3://autogluon-zeroshot/repository/BAG_D244_F1_C16_micro.pkl'),
@@ -88,6 +94,6 @@ if __name__ == '__main__':
     ).to_zeroshot()
     init_lbc = LeakageBenchmarkConfig(
         l1_models=None,
-        datasets=repository.dataset_names()
+        datasets=_dataset_subset_filter(repository)  ##repository.dataset_names(), known_leaking_binary  #
     )
     analyze_starter(repo=repository, lbc=init_lbc)
