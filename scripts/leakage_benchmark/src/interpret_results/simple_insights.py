@@ -3,7 +3,7 @@ import pickle
 
 from scripts.leakage_benchmark.src.config_and_data_utils import LeakageBenchmarkFoldResults, LeakageBenchmarkResults
 from scripts.leakage_benchmark.src.interpret_results.plotting.cd_plot import cd_evaluation
-from scripts.leakage_benchmark.src.interpret_results.plotting.distribution_plot import _distribution_plot
+from scripts.leakage_benchmark.src.interpret_results.plotting.distribution_plot import _distribution_plot, normalized_improvement_distribution_plot
 from typing import List
 import pandas as pd
 import glob
@@ -40,6 +40,8 @@ def _run():
     performance_per_dataset = pd.concat(
         [r.leak_overview_df.drop(index=['all_l2_models'])[['simulate_test_score']].T.rename(
             index=dict(simulate_test_score=r.dataset)) for r in res])
+    performance_per_dataset.index.name = 'Dataset'
+
     for task_type in all_res['problem_type'].unique():
         print(f"### Task type: {task_type}")
         task_res = all_res[all_res['problem_type'] == task_type]
@@ -49,6 +51,8 @@ def _run():
         cd_evaluation(performance_per_dataset[performance_per_dataset.index.isin(task_res['dataset'])], True,
                       fig_dir / task_type / 'leakage_mitigation_all_compare_cd_plot.pdf',
                       ignore_non_significance=True)
+        normalized_improvement_distribution_plot(performance_per_dataset[performance_per_dataset.index.isin(task_res['dataset'])], True,
+                                                 'LightGBM_noise_dummy_BAG_L2', fig_dir / task_type / 'leakage_mitigation_all_compare_ni_plot.pdf')
 
         for leak_baseline in l2_models:
             print(f'\n## For Method: {leak_baseline}')

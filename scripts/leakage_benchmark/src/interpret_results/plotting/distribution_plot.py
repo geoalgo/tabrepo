@@ -105,9 +105,9 @@ def normalized_improvement_distribution_plot(performance_per_dataset, maximize_m
                        x_label="Normalized Improvement", y_label="Algorithms",
                        save_path=output_path,
                        baseline_val=-1,
-                       overwrite_xlim=-1.5,
+                       overwrite_xlim=None,
                        xlim_max=0.1,
-                       baseline_name="KNN",
+                       baseline_name=baseline_name,
                        dot_name="Normalized Improvement for one Metric",
                        sort_by="median",
                        figsize=(12, 10))
