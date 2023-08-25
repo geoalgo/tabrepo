@@ -107,7 +107,7 @@ def val_flip(self, X, y_pred_proba, val_label):
         X[stack_features].values[np.arange(len(X)), np.argmin(l1_loss_all, axis=1)][flipped_mask]
 
 
-def current_best(self, X, y_pred_proba, val_label):
+def non_loss_based_flip_best(self, X, y_pred_proba, val_label):
     # --- Required during fit:
     # stack_f = self.feature_metadata.get_features(required_special_types=['stack'])
     #
@@ -163,3 +163,104 @@ def current_best(self, X, y_pred_proba, val_label):
     if self._lose_cheat_th_smaller is not None:
         mask_flip_to_better_smaller = diff <= self._lose_cheat_th_smaller
         y_pred_proba[mask_flip_to_better_smaller] = reasonable_l2_proba[mask_flip_to_better_smaller]
+
+
+def _with_norm(self, X, y_pred_proba, val_label):
+    from sklearn.preprocessing import MinMaxScaler
+    # org_y_pred_proba = y_pred_proba.copy()
+    reasonable_l2_proba = np.average(X[self._stack_f], axis=1, weights=self._l1_ges_weights)
+    allowed_gap = 0.3
+
+    def _get_masks(labels, gap, scale_gap=True):
+        l2_loss = abs(labels - y_pred_proba)
+        reasonable_l2_loss = abs(labels - reasonable_l2_proba)
+        rel_loss_diff = (reasonable_l2_loss - l2_loss) / np.max([reasonable_l2_loss, l2_loss], axis=0)
+
+        if scale_gap:
+            # Scale gap measure by observed impact of loss change
+            # higher is more impact
+            impact_of_change = abs(reasonable_l2_loss - l2_loss) / np.mean(abs(reasonable_l2_loss - l2_loss))
+            # make needed gap smaller where impact is larger
+            _gap = np.full_like(rel_loss_diff, gap) / (impact_of_change + np.finfo(float).eps)
+        else:
+            _gap = gap
+
+        _win_cheat_cases = rel_loss_diff >= _gap
+        _lose_cheat_cases = rel_loss_diff <= -_gap
+        return _win_cheat_cases, _lose_cheat_cases
+
+    def _transform(_l2_scaler, _reasonable_l2_scaler, _clip_min, _clip_max, x):
+        return _l2_scaler.inverse_transform(
+            _reasonable_l2_scaler.transform(np.clip(x, _clip_min, _clip_max).reshape(-1, 1))
+        ).flatten()
+
+    if val_label is not None:
+        win_cheat_cases, lose_cheat_cases = _get_masks(val_label, allowed_gap)
+
+        tmp = y_pred_proba.copy()
+        _u, _l = min(tmp.mean() + tmp.std() * 3, 1), max(tmp.mean() - tmp.std() * 3, 0)
+        tmp = np.append(tmp, _u)
+        tmp = np.append(tmp, _l)
+
+        tmp_r = reasonable_l2_proba.copy()
+        _u, _l = min(tmp_r.mean() + tmp_r.std() * 3, 1), max(tmp_r.mean() - tmp_r.std() * 3, 0)
+        tmp_r = np.append(tmp_r, _u)
+        tmp_r = np.append(tmp_r, _l)
+
+        self._l2_scaler = MinMaxScaler().fit(tmp.reshape(-1, 1))
+        self._reasonable_l2_scaler = MinMaxScaler().fit(tmp_r.reshape(-1, 1))
+        self._clip_min = min(tmp_r)
+        self._clip_max = max(tmp_r)
+        print(abs(min(tmp_r) - min(tmp)), abs(max(tmp_r) - max(tmp)))
+    else:
+        pseudo_label = (reasonable_l2_proba >= 0.5).astype(int)
+        win_cheat_cases, lose_cheat_cases = _get_masks(pseudo_label, allowed_gap)
+
+    # -- Flip based on learned smaller/greater mapping
+
+    # Flip to make model worse
+    if sum(win_cheat_cases):
+        y_pred_proba[win_cheat_cases] = _transform(self._l2_scaler, self._reasonable_l2_scaler, self._clip_min,
+                                                   self._clip_max,
+                                                   reasonable_l2_proba[win_cheat_cases])
+
+    # Flip to make model better
+    if sum(lose_cheat_cases):
+        y_pred_proba[lose_cheat_cases] = _transform(self._l2_scaler, self._reasonable_l2_scaler, self._clip_min,
+                                                    self._clip_max,
+                                                    reasonable_l2_proba[lose_cheat_cases])
+
+
+def current_best(self, X, y_pred_proba, val_label):
+    reasonable_l2_proba = np.average(X[self._stack_f], axis=1, weights=self._l1_ges_weights)
+    allowed_gap = 0.3
+
+    def _get_masks(labels, gap, scale_gap=True):
+        l2_loss = abs(labels - y_pred_proba)
+        reasonable_l2_loss = abs(labels - reasonable_l2_proba)
+        rel_loss_diff = (reasonable_l2_loss - l2_loss) / np.max([reasonable_l2_loss, l2_loss], axis=0)
+
+        if scale_gap:
+            # Scale gap measure by observed impact of loss change
+            # higher is more impact
+            impact_of_change = abs(reasonable_l2_loss - l2_loss) / np.mean(abs(reasonable_l2_loss - l2_loss))
+            # make needed gap smaller where impact is larger
+            _gap = np.full_like(rel_loss_diff, gap) / (impact_of_change + np.finfo(float).eps)
+        else:
+            _gap = gap
+
+        _win_cheat_cases = rel_loss_diff >= _gap
+        _lose_cheat_cases = rel_loss_diff <= -_gap
+        return _win_cheat_cases, _lose_cheat_cases
+
+    if val_label is not None:
+        win_cheat_cases, lose_cheat_cases = _get_masks(val_label, allowed_gap)
+    else:
+        pseudo_label = (reasonable_l2_proba >= 0.5).astype(int)
+        win_cheat_cases, lose_cheat_cases = _get_masks(pseudo_label, allowed_gap)
+
+    # -- Flip based on learned smaller/greater mapping
+    # Flip to make model worse
+    y_pred_proba[win_cheat_cases] = reasonable_l2_proba[win_cheat_cases]
+    # Flip to make model better
+    y_pred_proba[lose_cheat_cases] = reasonable_l2_proba[lose_cheat_cases]
