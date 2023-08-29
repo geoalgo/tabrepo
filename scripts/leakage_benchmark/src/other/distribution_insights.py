@@ -19,7 +19,7 @@ def get_fold_indicator(X_train, y_train, layer):
 
 
 def _viz_flip(l1_oof, l2_oof, y, title_postfix='', l1_model='L1/OOF/RandomForest_c1_BAG_L1',
-              l2_model='LightGBM_BAG_L2', l2_model_no_leak='LightGBM_mc_int_BAG_L2'):
+              l2_model='LightGBM_BAG_L2', l2_model_no_leak='LightGBM_lfc_BAG_L2'):
     plot_df = l1_oof.loc[:, [l1_model]]
     plot_df['label'] = y
     plot_df[l2_model] = l2_oof[l2_model]
@@ -123,47 +123,47 @@ def get_proba_insights(l1_train_oof, l1_test_oof, l2_train_oof, l2_test_oof, y_t
     # need features and predictor for this
 
     # l1_fold_indicator = get_fold_indicator(l1_train_oof, y_train, layer=1)
-
-    print('l1')
-    for bm in list(l1_train_oof):
-        val_score = eval_metric(y_train, l1_train_oof[bm])
-        test_score = eval_metric(y_test, l1_test_oof[bm])
-
-        print(bm, test_score, val_score)
-
-    print('l2')
-    for bm in list(l2_train_oof):
-        val_score = eval_metric(y_train, l2_train_oof[bm])
-        test_score = eval_metric(y_test, l2_test_oof[bm])
-
-        print(bm, test_score, val_score)
-
-    l1_model = list(l1_train_oof)[0]
-    l2_model = list(l2_train_oof)[0]
-
-    # # Get Val Score (technically leaks due to predictor I guess)
-    # from autogluon.core.utils.utils import CVSplitter
-    # cv = CVSplitter(n_splits=8, n_repeats=1, stratified=True, random_state=2)
-    # res, res_, res__ = [], [], []
-    # for train_index, test_index in cv.split(X_train, y_train):
-    #     score, flip_ratio, model_val_error = _flip_model_check(X_train.iloc[train_index], y_train[train_index],
-    #                                           X_train.iloc[test_index], y_train[test_index],
-    #                                           l1_train_oof.iloc[test_index], l2_train_oof.iloc[test_index],
-    #                                           l1_model, l2_model, predictor, eval_metric)
-    #     res.append(score)
-    #     res_.append(flip_ratio)
-    #     res__.append(model_val_error)
-    # print(f'CV Avoided Score: {np.mean(res)} (FR: {np.mean(res_)}) | Model Val Error: {np.mean(res__)}')
-
-
-    # Get Test Score
-    score, flip_ratio, model_val_error = _flip_model_check(X_train, y_train, X_test, y_test, l1_test_oof, l2_test_oof,
-                                          l1_model, l2_model, predictor, eval_metric)
-    print(f'Flip Avoided Test Score: {score} (FR: {flip_ratio}) | Model Val Score: {model_val_error}')
+    #
+    # print('l1')
+    # for bm in list(l1_train_oof):
+    #     val_score = eval_metric(y_train, l1_train_oof[bm])
+    #     test_score = eval_metric(y_test, l1_test_oof[bm])
+    #
+    #     print(bm, test_score, val_score)
+    #
+    # print('l2')
+    # for bm in list(l2_train_oof):
+    #     val_score = eval_metric(y_train, l2_train_oof[bm])
+    #     test_score = eval_metric(y_test, l2_test_oof[bm])
+    #
+    #     print(bm, test_score, val_score)
+    #
+    # l1_model = list(l1_train_oof)[0]
+    # l2_model = list(l2_train_oof)[0]
+    #
+    # # # Get Val Score (technically leaks due to predictor I guess)
+    # # from autogluon.core.utils.utils import CVSplitter
+    # # cv = CVSplitter(n_splits=8, n_repeats=1, stratified=True, random_state=2)
+    # # res, res_, res__ = [], [], []
+    # # for train_index, test_index in cv.split(X_train, y_train):
+    # #     score, flip_ratio, model_val_error = _flip_model_check(X_train.iloc[train_index], y_train[train_index],
+    # #                                           X_train.iloc[test_index], y_train[test_index],
+    # #                                           l1_train_oof.iloc[test_index], l2_train_oof.iloc[test_index],
+    # #                                           l1_model, l2_model, predictor, eval_metric)
+    # #     res.append(score)
+    # #     res_.append(flip_ratio)
+    # #     res__.append(model_val_error)
+    # # print(f'CV Avoided Score: {np.mean(res)} (FR: {np.mean(res_)}) | Model Val Error: {np.mean(res__)}')
+    #
+    #
+    # # Get Test Score
+    # score, flip_ratio, model_val_error = _flip_model_check(X_train, y_train, X_test, y_test, l1_test_oof, l2_test_oof,
+    #                                       l1_model, l2_model, predictor, eval_metric)
+    # print(f'Flip Avoided Test Score: {score} (FR: {flip_ratio}) | Model Val Score: {model_val_error}')
 
     # --- 1 Base Model Viz ---
-    # l2_train_oof.columns = [x.replace('L1', 'L2') for x in l2_train_oof.columns]
-    # l2_test_oof.columns = [x.replace('L1', 'L2') for x in l2_test_oof.columns]
-    # _viz_flip(l1_train_oof, l2_train_oof, y_train, title_postfix=' for Train')
-    # _viz_flip(l1_test_oof, l2_test_oof, y_test, title_postfix=' for Test')
-    # input('Press enter to continue')
+    l2_train_oof.columns = [x.replace('L1', 'L2') for x in l2_train_oof.columns]
+    l2_test_oof.columns = [x.replace('L1', 'L2') for x in l2_test_oof.columns]
+    _viz_flip(l1_train_oof, l2_train_oof, y_train, title_postfix=' for Train')
+    _viz_flip(l1_test_oof, l2_test_oof, y_test, title_postfix=' for Test')
+    input('Press enter to continue')

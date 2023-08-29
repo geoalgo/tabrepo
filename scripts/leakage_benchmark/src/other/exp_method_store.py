@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 
 def _basic_flip(self, X, y_pred_proba, val_label):
@@ -232,7 +233,21 @@ def _with_norm(self, X, y_pred_proba, val_label):
 
 
 def current_best(self, X, y_pred_proba, val_label):
-    reasonable_l2_proba = np.average(X[self._stack_f], axis=1, weights=self._l1_ges_weights)
+    # --- Required during fit:
+    # stack_f = self.feature_metadata.get_features(required_special_types=['stack'])
+    #
+    # from scripts.leakage_benchmark.src.other.post_hoc_ensembling import caruana_weighted, \
+    #     roc_auc_binary_loss_proba
+    # self._l1_ges_weights, _ = caruana_weighted([np.array(x) for x in X[stack_f].values.T.tolist()],
+    #                                            y, 42, 50, roc_auc_binary_loss_proba)
+    # self._stack_f = stack_f
+
+
+    stack_f_col_indices = [i for i, f_name in enumerate(self.features) if f_name in self._stack_f]
+    if isinstance(X, pd.DataFrame):
+        reasonable_l2_proba = np.average(X.values[:, stack_f_col_indices], axis=1, weights=self._l1_ges_weights)
+    else:
+        reasonable_l2_proba = np.average(X[:, stack_f_col_indices], axis=1, weights=self._l1_ges_weights)
     allowed_gap = 0.3
 
     def _get_masks(labels, gap, scale_gap=True):

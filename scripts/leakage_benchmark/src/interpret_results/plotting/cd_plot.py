@@ -149,7 +149,7 @@ def cd_evaluation(performance_per_dataset, maximize_metric, output_path, ignore_
     result = RankResult(res.rankdf, res.pvalue, res.cd, res.omnibus, res.posthoc, all_normal, pvals_shapiro,
                         None, None, None, alpha, alpha_normality, len(rank_data), None, None,
                         None, None, res.effect_size, None)
-
+    print(res.rankdf)
     if result.pvalue >= result.alpha:
         if ignore_non_significance:
             warnings.warn("result is not significant and results of the plot may be misleading.")
