@@ -21,12 +21,20 @@ def get_data(tid: int, fold: int):
 
 
 def _run(task_id, metric):
-    print("##### Run for ", task_id)
-
     l2_train_data, l2_test_data, label, regression = get_data(task_id, 0)
 
+    # Sub sample instances
     l2_train_data = l2_train_data.sample(n=min(len(l2_train_data), 10000), random_state=0).reset_index(drop=True)
     l2_test_data = l2_test_data.sample(n=min(len(l2_test_data), 20000), random_state=0).reset_index(drop=True)
+
+    # Sub sample columns
+    cols = list(l2_train_data.columns)
+    cols.remove(label)
+    if len(cols) > 200:
+        cols = list(np.random.RandomState(42).choice(cols, replace=False, size=200))
+    l2_train_data = l2_train_data[cols + [label]]
+    l2_test_data = l2_test_data[cols + [label]]
+
     print(l2_train_data.shape, l2_test_data.shape)
 
     # Run AutoGluon
@@ -55,7 +63,7 @@ def _run(task_id, metric):
         }
     )
 
-    print("##### Results for ", task_id)
+    print("### Results for ", task_id)
     leaderboard = predictor.leaderboard(l2_test_data, silent=True)[['model', 'score_test', 'score_val']].sort_values(by='model').reset_index(drop=True)
     with pd.option_context("display.max_rows", None, "display.max_columns", None, "display.width", 1000):
         print(leaderboard.sort_values(by='score_val', ascending=False))
@@ -135,49 +143,57 @@ def _run(task_id, metric):
 
     # and predictions must be different?
     repo_leak = repo_leak
+
+    stacking_is_better = (score_l1_oof < score_l2_oof) and (score_l1_test < score_l2_test)
+
     print('All predictions are equal:', all(l1_repo_pred == l2_repo_pred))
+    print(f'Stacking is better: {stacking_is_better}')
     print(f'Leak: {leak} | Repo Leak: {repo_leak}')
     print(f'Idea Correct: {leak == repo_leak}')
     rmtree(predictor.path)
-    return leak, repo_leak
+    return leak, repo_leak, stacking_is_better, task_id
+
 
 if __name__ == '__main__':
-    # _run(361339, "roc_auc") # titanic (binary); leak visible
-    # _run(189354, "roc_auc") # airlines (binary); leak visible w/o protection (3 folds, 1 repeats)
-    # _run(359990, "roc_auc") # albert
-    # _run(359983, "roc_auc") # adult
-
-    c_list = [] # 3608, 3913, 359979, 361332, 3918, 3919, 3962
-    known_leak = [3899, 43, 3483, 3608, 3616, 3623, 3668, 3684, 3702, 3793, 3904, 3907, 3913, 9971, 167120, 168868, 189354, 190411, 359955, 359956, 359958, 359967, 359972, 359975, 359979, 359983, 359992, 361332, 361334, 361335, 361339,]
-    for test_id in known_leak:
-        #[
-        # 359975,  # leak computation broken, wrong test score used for compare.
-
-        # wrong close
-        #3913, 3918]: # , 3964, 361332, 167120, 3968, 3980
-         #   3899, 43, 3483, 3608, 3616, 3623, 3668, 3684, 3702, 3793, 3904, 3907, 3913, 9971, 167120, 168868, 189354, 190411, 359955, 359956, 359958, 359967, 359972, 359975, 359979, 359983, 359992, 361332, 361334, 361335, 361339,
-         #           3903, 3918, 3919, 3945, 3954, 3962, 3964, 3968, 3976, 3980, 3995, 4000, 9909, 9943, 9959, 9970, 9976, 9983, 14954, 125920, 125968, 146818, 146819, 146820, 168350, 168757, 168911, 189356, 189922, 190137, 190392, 190410, 190412, 359962, 359966, 359968, 359971, 359973, 359980, 359982, 359988, 359989, 359990, 359991, 359994, 360113,]:
+    c_list = []
+    known_leak = [43, 3483, 3608, 3616, 3623, 3668, 3684, 3702, 3793, 3904, 3907, 3913, 9971, 167120, 168868, 189354,
+                  190411, 359955, 359956, 359958, 359967, 359972, 359975, 359979, 359983, 359992, 361332, 361334,
+                  361335, 361339]
+    known_not_leak = [37, 219, 3581, 3583, 3591, 3593, 3600, 3601, 3606, 3618, 3627, 3664, 3667, 3672, 3681, 3688, 3690,
+                      3698, 3704, 3712, 3735, 3747, 3749, 3764, 3766, 3783, 3786, 3799, 3800, 3812, 3844, 3892, 3899,
+                      3903, 3918, 3919, 3945, 3954, 3962, 3964, 3968, 3976, 3980, 3995, 4000, 9909, 9943, 9959, 9970,
+                      9976, 9983, 14954, 125920, 125968, 146818, 146819, 146820, 168350, 168757, 168911, 189356,
+                      189922, 190137, 190392, 190410, 190412, 359962, 359966, 359968, 359971, 359973, 359980, 359982,
+                      359988, 359989, 359990, 359991, 359994, 360113, 360114, 360975, 361331, 361333, 361336, 361340,
+                      361341, 361342]
+    false_positives = [3913, 3918, 3964, 361332, 167120, 3968, 3980, 9971]
+    to_test = known_not_leak + known_leak
+    for en_idx, test_id in enumerate(to_test, start=1):
+        print(f"\n##### Run for {test_id} ({en_idx}/{len(to_test)})")
         c_list.append(_run(test_id, "roc_auc"))
+
+    import pickle
+    with open(f'results.pkl', 'wb') as f:
+        pickle.dump(c_list, f)
 
     c_list = np.array(c_list)
     print('Method ACC:', accuracy_score(c_list[:, 0], c_list[:, 1]))
     cm = pd.DataFrame(confusion_matrix(c_list[:, 0], c_list[:, 1]), columns=['Spotter - False', 'Spotter - True'],
-                 index=['GT - False', 'GT - True'])
+                      index=['GT - False', 'GT - True'])
     with pd.option_context("display.max_rows", None, "display.max_columns", None, "display.width", 1000):
         print(cm)
+    print(f"Stacking is better {np.sum(c_list[:, 2])}/{len(c_list[:, 2])} ({np.mean(c_list[:, 2])})")
+
+    # --- Other
+    # _run(361339, "roc_auc") # titanic (binary); leak visible
+    # _run(189354, "roc_auc") # airlines (binary); leak visible w/o protection (3 folds, 1 repeats)
+    # _run(359990, "roc_auc") # albert
+    # _run(359983, "roc_auc") # adult
     # openml_id = 3913 # kc2
     # openml_id = 4000 # OVA_Ovary
     # openml_id = 361331 # GAMETES_Epistasis_2-Way_1000atts_0_4H_EDM-1_EDM-1_1
     # 'GAMETES_Epistasis_2-Way_1000atts_0_4H_EDM-1_EDM-1_1', 'OVA_Ovary',
     # openml_id = 146217 # wine-quality-red (multi-class); leak not visible IMO
     # metric = 'log_loss'
-
     # openml_id = 359931 # sensory (regression); leak not visible
     # metric = 'mse'
-
-
-
-    # Problems:
-    # sees leak if leak val exists but not strong enough to hurt tests
-    # sometiems duplicates
-    # sometimes identical, or very clsoe to identical (or just noise TBH)
