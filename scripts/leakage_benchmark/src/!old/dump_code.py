@@ -58,3 +58,77 @@
 #         #     layer_splits_indicator[unsampled_indices] = np.char.add(layer_splits_indicator[unsampled_indices], "S" + str(est_i))
 #         self._layer_splits_indicator = None # layer_splits_indicator
 #         # --- End test
+
+
+
+# --- Cluster indicator and rank per instance view
+#     l1_fold_indicator = get_l_fold_indicator(l2_X_train, l2_y_train, layer=1)
+#     l2_fold_indicator = get_l_fold_indicator(l2_X_train, l2_y_train, layer=2, stratify_on_last_layer=False)
+# cluster_indicator = cluster_X(l2_X_train)
+# l1_ges_weights, val_loss_over_iterations_ = caruana_weighted([np.array(x) for x in l2_train_data[oof_col_names].values.T.tolist()],
+#                                                              l2_y_train, 42, 50, roc_auc_binary_loss_proba)
+# l1_ges_train_score = eval_metric(l2_y_train, np.average(l2_train_data[oof_col_names], axis=1, weights=l1_ges_weights))
+# l1_ges_test_score = eval_metric(l2_y_test, np.average(l2_test_data[oof_col_names], axis=1, weights=l1_ges_weights))
+#
+# from autogluon.core.utils.utils import CVSplitter
+#
+# cv = CVSplitter(n_splits=8, n_repeats=1, stratified=True, random_state=2)
+# fold_fake_model_map = {}
+# for fold_i, (train_i, test_i) in enumerate(cv.split(l2_X_train, l2_y_train)):
+#     fold_fake_model_map[fold_i] = caruana_weighted([np.array(x) for x in l2_train_data.iloc[train_i][oof_col_names].values.T.tolist()],
+#                                                              l2_y_train[train_i], 42, 50, roc_auc_binary_loss_proba)[0]
+# oof_X = l2_X_train[oof_col_names]
+# l1_fold_model_perf = {x: {} for x in oof_col_names}
+# for fold in np.unique(l1_fold_indicator):
+#     fold_mask = fold == l1_fold_indicator
+#     for col in list(oof_col_names):
+#         l1_fold_model_perf[col][fold] = [eval_metric(l2_y_train[fold_mask], oof_X.loc[fold_mask, col])]
+#
+# oof_col_to_rank_per_fold = {
+#     oof_col: {k: v[0] for k, v in
+#               pd.DataFrame.from_dict(l1_fold_model_perf[oof_col]).rank(axis=1, ascending=False).to_dict(
+#                   orient="list").items()}
+#     for oof_col in l1_fold_model_perf.keys()
+# }
+#
+# rank_oof_df = oof_X.copy()
+# for fold in np.unique(l1_fold_indicator):
+#     fold_mask = fold == l1_fold_indicator
+#     for col in list(oof_col_names):
+#         rank_oof_df[col][fold_mask] = oof_col_to_rank_per_fold[col][fold]
+#
+# rank_per_instance = rank_oof_df.mean(axis=1)
+# avg_rank = rank_per_instance.mean()
+# # print('overall avg', avg_rank)
+# diff = []
+# for fold in np.unique(l2_fold_indicator):
+#     fold_mask = fold == l2_fold_indicator
+#     print(rank_per_instance[fold_mask].mean())
+#     diff.append(abs(avg_rank - rank_per_instance[fold_mask].mean()))
+# print('Avg diff in ranks per fold', np.mean(diff), f"(U: {len(np.unique(rank_per_instance))})")
+#
+# l2_fold_indicator_strat = get_l_fold_indicator(l2_X_train, l2_y_train, layer=2,
+#                                                stratify_on=rank_per_instance.astype(str))
+#
+# rank_per_instance = rank_oof_df.mean(axis=1)
+# avg_rank = rank_per_instance.mean()
+# diff = []
+# for fold in np.unique(l2_fold_indicator_strat):
+#     fold_mask = fold == l2_fold_indicator_strat
+#     # print(rank_per_instance[fold_mask].mean())
+#     diff.append(abs(avg_rank - rank_per_instance[fold_mask].mean()))
+# print('Avg diff in ranks per fold', np.mean(diff), f"(U: {len(np.unique(rank_per_instance))})")
+#
+# # stratify_on = rank_per_instance.astype(str)
+# stratify_on = rank_per_instance.astype(str) + "L" + l2_y_train.astype(str)
+# l2_fold_indicator_strat = get_l_fold_indicator(l2_X_train, l2_y_train, layer=2,
+#                                                stratify_on=rank_per_instance.astype(str) + "L" + l2_y_train.astype(str))
+#
+# rank_per_instance = rank_oof_df.mean(axis=1)
+# avg_rank = rank_per_instance.mean()
+# diff = []
+# for fold in np.unique(l2_fold_indicator_strat):
+#     fold_mask = fold == l2_fold_indicator_strat
+#     # print(rank_per_instance[fold_mask].mean())
+#     diff.append(abs(avg_rank - rank_per_instance[fold_mask].mean()))
+# print('Avg diff in ranks per fold', np.mean(diff), f"(U: {len(np.unique(rank_per_instance))})")
