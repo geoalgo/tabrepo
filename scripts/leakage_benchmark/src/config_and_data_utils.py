@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Dict, Tuple, Any
-from functools import partial
+from typing import Any, Dict, List, Tuple
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 L1_PREFIX = 'L1/OOF/'
 EPS = np.finfo(np.float32).eps
@@ -32,19 +31,25 @@ class LeakageBenchmarkConfig:
     def default_l2(self):
         return {
             'GBM': [
-                # {'test': True, 'ag_args': {'name_suffix': '_test'}},
-                {'label_flip_constraints': True, 'ag_args': {'name_suffix': '_lfc'}},
+                {'test': False,
+                 'ag_args': {'name_suffix': '_test'},
+                 'ag_args_fit': {'fit_args_test': False},
+                 'ag_args_ensemble': {'ens_args_test': False}  # in bagged ensemble model
+                 },
+
                 {},
-                {'monotone_constraints_for_stack_features': True,
-                 'ag_args': {'name_suffix': '_mc'}},
-                {'monotone_constraints_for_stack_features': True, 'label_flip_constraints': True,
-                 'ag_args': {'name_suffix': '_mc_lfc'}},
-                {'monotone_constraints_for_stack_features': True, 'stack_feature_interactions_map': True,
-                 'ag_args': {'name_suffix': '_mc_int'}},
+                # {'_model_needs_protection': False},
+
+                # {'monotone_constraints_for_stack_features': True,
+                # 'ag_args': {'name_suffix': '_mc'}},
+                # {'monotone_constraints_for_stack_features': True, 'label_flip_constraints': True,
+                # 'ag_args': {'name_suffix': '_mc_lfc'}},
+                # {'monotone_constraints_for_stack_features': True, 'stack_feature_interactions_map': True,
+                # 'ag_args': {'name_suffix': '_mc_int'}},
                 # {'only_correct_instances': True,
                 #  'ag_args': {'name_suffix': '_OCI'}},
-                {'random_noise_for_stack': True,
-                 'ag_args': {'name_suffix': '_noise_dummy'}},
+                # {'random_noise_for_stack': True,
+                # 'ag_args': {'name_suffix': '_noise_dummy'}},
                 # {'drop_duplicates': True,
                 #  'ag_args': {'name_suffix': '_dd'}},
             ],
@@ -107,7 +112,7 @@ class LeakageBenchmarkFoldResults:
         return abs(self.score_optimum - score)
 
     def is_close_func(self, x, y):
-        # np.isclose(x, y, atol=1e-03, rtol=1e-08)
+        # return np.isclose(x, y, atol=1e-03, rtol=1e-08)
         return x == y
 
     def __post_init__(self):

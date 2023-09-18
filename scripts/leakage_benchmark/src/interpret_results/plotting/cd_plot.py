@@ -1,11 +1,11 @@
+import math
 import warnings
 
-import pandas as pd
 import matplotlib.pyplot as plt
-import math
 import numpy as np
-
-from autorank._util import RankResult, rank_multiple_nonparametric, test_normality, get_sorted_rank_groups
+import pandas as pd
+from autorank._util import (RankResult, get_sorted_rank_groups,
+                            rank_multiple_nonparametric, test_normality)
 
 
 def _custom_cd_diagram(result, reverse, ax, width):
@@ -121,7 +121,7 @@ def _custom_cd_diagram(result, reverse, ax, width):
     return ax
 
 
-def cd_evaluation(performance_per_dataset, maximize_metric, output_path, ignore_non_significance=False):
+def cd_evaluation(performance_per_dataset, maximize_metric, output_path=None, ignore_non_significance=False, plt_title=None):
     """	Performance per dataset is  a dataframe that stores the performance (with respect to a metric) for  set of
     	configurations / models / algorithms per dataset. In  detail, the columns are individual configurations.
     	rows are datasets and a cell is the performance of the configuration for  dataset.
@@ -160,8 +160,11 @@ def cd_evaluation(performance_per_dataset, maximize_metric, output_path, ignore_
     fig, ax = plt.subplots(figsize=(12, 8))
     plt.rcParams.update({'font.size': 16})
     _custom_cd_diagram(result, order == "ascending", ax, 8)
+    if plt_title:
+        plt.title(plt_title)
     plt.tight_layout()
-    plt.savefig(output_path, transparent=True, bbox_inches='tight')
+    if output_path:
+        plt.savefig(output_path, transparent=True, bbox_inches='tight')
     plt.show()
     plt.close()
 

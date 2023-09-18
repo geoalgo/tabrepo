@@ -1,18 +1,34 @@
+import glob
 import pathlib
 import pickle
-
-from scripts.leakage_benchmark.src.config_and_data_utils import LeakageBenchmarkFoldResults, LeakageBenchmarkResults
-from scripts.leakage_benchmark.src.interpret_results.plotting.cd_plot import cd_evaluation
-from scripts.leakage_benchmark.src.interpret_results.plotting.distribution_plot import _distribution_plot, normalized_improvement_distribution_plot
 from typing import List
+
 import pandas as pd
-import glob
+
+from scripts.leakage_benchmark.src.config_and_data_utils import (
+    LeakageBenchmarkFoldResults, LeakageBenchmarkResults)
+from scripts.leakage_benchmark.src.interpret_results.plotting.cd_plot import \
+    cd_evaluation
+from scripts.leakage_benchmark.src.interpret_results.plotting.distribution_plot import (
+    _distribution_plot, normalized_improvement_distribution_plot)
 
 BASE_PATH = pathlib.Path(__file__).parent.parent.parent.resolve() / 'output'
 
+def _process_custom_fold_results():
+    BASE_PATH = pathlib.Path(__file__).parent.parent.parent.resolve() / 'output'
+    file_dir = BASE_PATH / 'fold_results_per_dataset_leak_repo_test'
+    data = {}
 
+    for f_path in glob.glob(str(file_dir / 'fold_results_*.pkl')):
+        with open(f_path, 'rb') as f:
+            fold_data = pickle.load(f)
+            if not fold_data:
+                raise ValueError(f"Empty fold data in {f_path}")
+            data[f_path.split("/")[-1].lstrip('fold_results_').rstrip('.pkl')] = fold_data
+
+    return data
 def _read_fold_results() -> [List[LeakageBenchmarkResults], List[List[LeakageBenchmarkFoldResults]]]:
-    file_dir = BASE_PATH / 'fold_results_per_dataset'
+    file_dir = BASE_PATH / 'fold_results_per_dataset_3'
     data: List[List[LeakageBenchmarkFoldResults]] = []
     res: List[LeakageBenchmarkResults] = []
 
@@ -48,13 +64,13 @@ def _run():
         # Plot leakage prevention quality (overall)
         print('Overall Plot')
         (fig_dir / task_type).mkdir(exist_ok=True, parents=True)
-        cd_evaluation(performance_per_dataset[performance_per_dataset.index.isin(task_res['dataset'])], True,
-                      fig_dir / task_type / 'leakage_mitigation_all_compare_cd_plot.pdf',
-                      ignore_non_significance=True)
-        normalized_improvement_distribution_plot(performance_per_dataset[performance_per_dataset.index.isin(task_res['dataset'])], True,
-                                                 'LightGBM_noise_dummy_BAG_L2', fig_dir / task_type / 'leakage_mitigation_all_compare_ni_plot.pdf')
+        # cd_evaluation(performance_per_dataset[performance_per_dataset.index.isin(task_res['dataset'])], True,
+        #               fig_dir / task_type / 'leakage_mitigation_all_compare_cd_plot.pdf',
+        #               ignore_non_significance=True)
+        # normalized_improvement_distribution_plot(performance_per_dataset[performance_per_dataset.index.isin(task_res['dataset'])], True,
+        #                                          'LightGBM_noise_dummy_BAG_L2', fig_dir / task_type / 'leakage_mitigation_all_compare_ni_plot.pdf')
 
-        for leak_baseline in l2_models:
+        for leak_baseline in ['LightGBM_noise_dummy_BAG_L2']:
             print(f'\n## For Method: {leak_baseline}')
             datasets_that_leak = task_res.loc[task_res[f'relative_test_loss_by_leak/{leak_baseline}'] > 0, 'dataset']
             loss_for_leak_ds = task_res[task_res['dataset'].isin(datasets_that_leak)][
@@ -67,7 +83,7 @@ def _run():
                   f"\nFor these datasets, the leak increases the error from min {loss_for_leak_ds.min() * 100:.3f}% "
                   f"to max {loss_for_leak_ds.max() * 100:.3f}% (avg.: {loss_for_leak_ds.mean() * 100:.3f}%).",
                   f"\nMoreover, the gap between validation and test loss increases on average by {gap_for_leak_ds.mean() * 100:.3f}%.")
-
+            print()
             # if len(datasets_that_leak) < 3:
             #     print('Not enough dataset that leak for CD plots!')
             #     continue
@@ -139,4 +155,5 @@ def _run():
 
 
 if __name__ == '__main__':
+    _process_custom_fold_results()
     _run()

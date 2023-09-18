@@ -1,11 +1,13 @@
-from autogluon_zeroshot.utils.cache import cache_function
-from autogluon_zeroshot.repository import EvaluationRepository, EvaluationRepositoryZeroshot
-from scripts.leakage_benchmark.src.config_and_data_utils import LeakageBenchmarkConfig, LeakageBenchmarkFoldResults
-
-from scripts.leakage_benchmark.src.stacking_simulator import obtain_input_data_for_l2, autogluon_l2_runner
-
-import pickle
 import pathlib
+import pickle
+
+from autogluon_zeroshot.repository import (EvaluationRepository,
+                                           EvaluationRepositoryZeroshot)
+from autogluon_zeroshot.utils.cache import cache_function
+from scripts.leakage_benchmark.src.config_and_data_utils import (
+    LeakageBenchmarkConfig, LeakageBenchmarkFoldResults)
+from scripts.leakage_benchmark.src.stacking_simulator import (
+    autogluon_l2_runner, obtain_input_data_for_l2)
 
 
 def _leakage_analysis(repo, lbc, dataset, fold) -> LeakageBenchmarkFoldResults:
@@ -22,7 +24,6 @@ def _leakage_analysis(repo, lbc, dataset, fold) -> LeakageBenchmarkFoldResults:
                                                        plot_insights=lbc.plot_insights,
                                                        l1_model_worst_to_best=list(
                                                            l1_results.sort_values(by='score_val').iloc[:, 0]))
-
     # LeakageBenchmarkFoldResults.print_leaderboard(l2_results)
     LeakageBenchmarkFoldResults.print_leaderboard(l1_results.sort_values(by='score_val', ascending=True))
 
@@ -34,7 +35,7 @@ def _leakage_analysis(repo, lbc, dataset, fold) -> LeakageBenchmarkFoldResults:
         custom_meta_data=custom_meta_data
     )
     results.print_leaderboard(results.get_leak_overview_df())
-    # print(results.custom_meta_data)
+    print(results.custom_meta_data)
     print('... done.')
 
     return results
@@ -82,11 +83,12 @@ def analyze_starter(repo: EvaluationRepositoryZeroshot, lbc: LeakageBenchmarkCon
 
 
 if __name__ == '__main__':
-    known_leaking_binary = ['GAMETES_Epistasis_3-Way_20atts_0_2H_EDM-1_1', 'blood-transfusion-service-center', 'kc2',
+    known_leaking_binary = ['blood-transfusion-service-center', 'GAMETES_Epistasis_3-Way_20atts_0_2H_EDM-1_1',  'kc2',
                             'meta', 'Satellite', 'Click_prediction_small',
                             'Titanic', 'eeg-eye-state', 'GAMETES_Epistasis_2-Way_1000atts_0_4H_EDM-1_EDM-1_1',
                             'APSFailure', 'numerai28_6',
                             'kc1', 'pc3', 'pc4', 'airlines', ]
+    quick_leak = ['Titanic', 'blood-transfusion-service-center']
     # Download repository from S3 and cache it locally for re-use in future calls
     repository: EvaluationRepositoryZeroshot = cache_function(
         fun=lambda: EvaluationRepository.load('s3://autogluon-zeroshot/repository/BAG_D244_F1_C16_micro.pkl'),
@@ -94,6 +96,6 @@ if __name__ == '__main__':
     ).to_zeroshot()
     init_lbc = LeakageBenchmarkConfig(
         l1_models=None,
-        datasets=_dataset_subset_filter(repository)  ##repository.dataset_names(), known_leaking_binary  #
+        datasets=quick_leak  # known_leaking_binary # _dataset_subset_filter(repository) #repository.dataset_names()
     )
     analyze_starter(repo=repository, lbc=init_lbc)

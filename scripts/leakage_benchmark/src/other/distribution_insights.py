@@ -1,9 +1,9 @@
 import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas as pd
 import numpy as np
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import seaborn as sns
 
 
 def get_fold_indicator(X_train, y_train, layer):
@@ -23,7 +23,7 @@ def _viz_flip(l1_oof, l2_oof, y, title_postfix='', l1_model='L1/OOF/RandomForest
     plot_df = l1_oof.loc[:, [l1_model]]
     plot_df['label'] = y
     plot_df[l2_model] = l2_oof[l2_model]
-    plot_df[l2_model_no_leak] = l2_oof[l2_model_no_leak]
+    # plot_df[l2_model_no_leak] = l2_oof[l2_model_no_leak]
     plot_df['fold'] = 'Train'
     plot_df['error'] = abs(l1_oof[l1_model] - l2_oof[l2_model])
 
@@ -32,11 +32,11 @@ def _viz_flip(l1_oof, l2_oof, y, title_postfix='', l1_model='L1/OOF/RandomForest
                   showscale=True,
                   colorscale='bluered'),
         dimensions=[
-            dict(label=l1_model, range=[0, 1], values=plot_df[l1_model]),
-            dict(label='label', range=[0, 1], values=plot_df['label']),
-            dict(label=l2_model, range=[0, 1], values=plot_df[l2_model]),
-            dict(label=l2_model_no_leak, range=[0, 1], values=plot_df[l2_model_no_leak]),
-            dict(label='error', range=[0, 1], values=plot_df['error'])
+            dict(label="L1 Model", range=[0, 1], values=plot_df[l1_model]),
+            dict(label="Label", range=[0, 1], values=plot_df['label']),
+            dict(label="L2 Model", range=[0, 1], values=plot_df[l2_model]),
+            # dict(label=l2_model_no_leak, range=[0, 1], values=plot_df[l2_model_no_leak]),
+            # dict(label='error', range=[0, 1], values=plot_df['error'])
         ],
 
     ), layout=dict(title=f'Label Flipping Insight{title_postfix}'))
@@ -46,8 +46,8 @@ def _viz_flip(l1_oof, l2_oof, y, title_postfix='', l1_model='L1/OOF/RandomForest
 
 def _flip_model_check(X_train, y_train, X_test, y_test, l1_test_oof, l2_test_oof,
                       l1_model, l2_model, predictor, eval_metric):
-    from sklearn.model_selection import cross_val_score
     from lightgbm import LGBMClassifier
+    from sklearn.model_selection import cross_val_score
 
     def bad_flips(label, l1_oof, l2_oof):
         l1_loss = abs(label - l1_oof)
