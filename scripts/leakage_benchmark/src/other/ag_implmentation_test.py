@@ -52,16 +52,19 @@ def get_data(tid: int, fold: int):
 
 def _run(task_id, metric):
     l2_train_data, l2_test_data, label, regression = get_data(task_id, 0)
+    n_max_cols = 500
+    n_max_train_instances = 100000
+    n_max_test_instances = 20000
 
     # Sub sample instances
-    l2_train_data = l2_train_data.sample(n=min(len(l2_train_data), 10000), random_state=0).reset_index(drop=True)
-    l2_test_data = l2_test_data.sample(n=min(len(l2_test_data), 20000), random_state=0).reset_index(drop=True)
+    l2_train_data = l2_train_data.sample(n=min(len(l2_train_data), n_max_train_instances), random_state=0).reset_index(drop=True)
+    l2_test_data = l2_test_data.sample(n=min(len(l2_test_data), n_max_test_instances), random_state=0).reset_index(drop=True)
 
     # Sub sample columns
     cols = list(l2_train_data.columns)
     cols.remove(label)
-    if len(cols) > 200:
-        cols = list(np.random.RandomState(42).choice(cols, replace=False, size=200))
+    if len(cols) > n_max_cols:
+        cols = list(np.random.RandomState(42).choice(cols, replace=False, size=n_max_cols))
     l2_train_data = l2_train_data[cols + [label]]
     l2_test_data = l2_test_data[cols + [label]]
 
@@ -79,7 +82,7 @@ def _run(task_id, metric):
             # 'XT': [{'criterion': 'entropy', 'ag_args': {'name_suffix': 'Entr', 'problem_types': ['binary', 'multiclass']}}],
         },
         num_stack_levels=1,
-        num_bag_sets=10,
+        num_bag_sets=4,
         num_bag_folds=8,
         fit_weighted_ensemble=True,
         # presets='best_quality',
@@ -375,13 +378,14 @@ if __name__ == '__main__':
                359994, 360113, 360975, 361333, 361336, 361341
                 ]
     to_test = all_tids
+    import pickle
+
     for en_idx, test_id in enumerate(to_test, start=1):
         print(f"\n##### Run for {test_id} ({en_idx}/{len(to_test)})")
         c_list.append(_run(test_id, "roc_auc"))
 
-    import pickle
-    with open(f'results_nested.pkl', 'wb') as f:
-        pickle.dump(c_list, f)
+        with open(f'results_nested.pkl', 'wb') as f:
+            pickle.dump(c_list, f)
 
     # --- Other
     # _run(361339, "roc_auc") # titanic (binary); leak visible
