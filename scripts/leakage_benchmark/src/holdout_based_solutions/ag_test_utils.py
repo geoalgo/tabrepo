@@ -112,11 +112,11 @@ def print_and_get_leaderboard(predictor, l2_test_data, method_name, corrected_va
     return leaderboard
 
 
-def inspect_full_results(res_dict):
-    print("#### Task Results Summary")
+def inspect_full_results(res_dict, proxy_so_results):
+    print("\n===> Task Results Summary")
     res_df = pd.DataFrame(res_dict["results"]).T
     res_df.index.name = "method_name"
     res_df = res_df.reset_index()
-
+    print("Proxy Found Stacked Overfitting:", proxy_so_results)
     with pd.option_context("display.max_rows", None, "display.max_columns", None, "display.width", 1000):
         print(res_df.sort_values(by="test_score", ascending=False))

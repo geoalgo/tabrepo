@@ -26,7 +26,7 @@ def _verify_stacking_settings(use_stacking, fit_para):
     return fit_para
 
 
-def default(train_data, label, fit_para, predictor_para, use_stacking=True):
+def default(train_data, label, fit_para, predictor_para, holdout_seed=None, use_stacking=True):
     # Default AutoGluon w/o any changes
     method_name = "default"
 
@@ -35,7 +35,7 @@ def default(train_data, label, fit_para, predictor_para, use_stacking=True):
     else:
         method_name += "_no_stacking"
 
-    print("Start running AutoGluon on L2 data:", method_name)
+    print("Start running AutoGluon on data:", method_name)
     predictor = TabularPredictor(**predictor_para)
     fit_para = _verify_stacking_settings(use_stacking, fit_para)
     predictor.fit(train_data=train_data, **fit_para)
@@ -43,7 +43,25 @@ def default(train_data, label, fit_para, predictor_para, use_stacking=True):
     return predictor, method_name, None
 
 
-def use_holdout(train_data, label, fit_para, predictor_para, refit_autogluon=False, select_on_holdout=False, dynamic_stacking=False, ges_holdout=False):
+def use_holdout(train_data, label, fit_para, predictor_para, refit_autogluon=False, select_on_holdout=False, dynamic_stacking=False, ges_holdout=False,
+                holdout_seed=42):
+    """A function to run different configurations of AutoGluon with a holdout set to avoid stacked overfitting.
+
+
+    Parameters
+    ----------
+    refit_autogluon:
+        If True, refit autogluon on all available data. Note, this is not a default AutoGluon refit (e.g. without bagging) but running default AutoGluon again.
+    select_on_holdout
+        If True, we select and set the best model based on the score on the holdout data. If we refit, we stick to the selection from the holdout data.
+    dynamic_stacking
+        If True, we dynamic select whether to use stacking for the refit based on whether we observed stacked overfitting on the holdout data.
+    ges_holdout
+        If True, we compute a weight vector, using greedy ensemble selection (GES), on the holdout data. Moreover, we set the best model to the
+        weighted ensemble with this weight vector. Note, we check both the L2 and L3 weighted ensemble and use the better one in the end.
+        If we refit, we stick to the weights computed on the holdout data.
+    """
+
     # Select final model based on holdout data.
     method_name = "holdout"
 
@@ -62,10 +80,10 @@ def use_holdout(train_data, label, fit_para, predictor_para, refit_autogluon=Fal
     # Get holdout
     classification_problem = predictor_para["problem_type"] in ["binary", "multiclass"]
     inner_train_data, outer_val_data = train_test_split(
-        train_data, test_size=1 / 8, random_state=42, stratify=train_data[label] if classification_problem else None
+        train_data, test_size=1 / 9, random_state=holdout_seed, stratify=train_data[label] if classification_problem else None
     )
 
-    print("Start running AutoGluon on L2 data:", method_name)
+    print("Start running AutoGluon on data:", method_name)
     predictor = TabularPredictor(**predictor_para)
     predictor.fit(train_data=inner_train_data, **fit_para)
 
@@ -73,6 +91,7 @@ def use_holdout(train_data, label, fit_para, predictor_para, refit_autogluon=Fal
     val_leaderboard = predictor.leaderboard(outer_val_data, silent=True).reset_index(drop=True)
     best_model_on_holdout = val_leaderboard.loc[val_leaderboard["score_test"].idxmax(), "model"]
     stacked_overfitting, *_ = _check_stacked_overfitting_from_leaderboard(val_leaderboard)
+    print("Stacked overfitting in this run:", stacked_overfitting)
 
     if ges_holdout:
         # Obtain best GES weights on holdout data

@@ -1,17 +1,32 @@
 from functools import partial
 
+import numpy as np
+
 from scripts.leakage_benchmark.src.holdout_based_solutions.ag_test_utils import (
     get_data, inspect_full_results, inspect_leaderboard,
     print_and_get_leaderboard, sub_sample)
 from scripts.leakage_benchmark.src.holdout_based_solutions.holdout_approaches import (
     default, use_holdout)
+from scripts.leakage_benchmark.src.holdout_based_solutions.stacked_overfitting_proxy_model import \
+    stacked_overfitting_proxy_model
+
+BASE_SEED = 239785
 
 
 def _run(task_id, metric):
     train_data, test_data, label, regression = get_data(task_id, 0)
     train_data, test_data, label = sub_sample(train_data, test_data, label, n_max_cols=50, n_max_train_instances=10000, n_max_test_instances=2000)
 
-    # Run AutoGluon
+    # --- Determine whether to use stacking by proxy ---
+    rng = np.random.RandomState(BASE_SEED)
+    holdout_seed = rng.randint(0, 2**32)
+    use_stacking_opinions = []
+    for _ in range(5):
+        use_stacking_opinions.append(stacked_overfitting_proxy_model(train_data, label, split_random_state=rng.randint(0, 2**32)))
+    print(f"Proxy Opinions: {use_stacking_opinions}")
+    proxy_found_so = any(use_stacking_opinions)
+
+    # --- AutoGluon Specification ---
     predictor_para = dict(eval_metric=metric, label=label, verbosity=0, problem_type="binary", learner_kwargs=dict(random_state=0))
     fit_para = dict(
         hyperparameters={
@@ -48,12 +63,12 @@ def _run(task_id, metric):
         partial(use_holdout, refit_autogluon=True, ges_holdout=True),
     ]:
         print("\n")
-        predictor, method_name, corrected_val_scores = method_func(train_data, label, fit_para, predictor_para)
+        predictor, method_name, corrected_val_scores = method_func(train_data, label, fit_para, predictor_para, holdout_seed=holdout_seed)
         leaderboard = print_and_get_leaderboard(predictor, test_data, method_name, corrected_val_scores)
         res["leaderboards"][method_name] = leaderboard
         res["results"][method_name] = inspect_leaderboard(leaderboard, predictor.get_model_best())
 
-    inspect_full_results(res)
+    inspect_full_results(res, proxy_found_so)
 
     return res
 
@@ -61,8 +76,8 @@ def _run(task_id, metric):
 if __name__ == "__main__":
     c_list = []
     all_tids = [
-        43,
         3483,
+        43,
         3608,
         3616,
         3623,
