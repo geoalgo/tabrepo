@@ -4,6 +4,11 @@ import numpy as np
 import openml
 import pandas as pd
 
+from scripts.leakage_benchmark.src.holdout_based_solutions.logger import \
+    get_logger
+
+logger = get_logger()
+
 
 def get_data(tid: int, fold: int):
     # Get Task and dataset from OpenML and return split data
@@ -33,7 +38,7 @@ def sub_sample(l2_train_data, l2_test_data, label, n_max_cols, n_max_train_insta
     l2_train_data = l2_train_data[cols + [label]]
     l2_test_data = l2_test_data[cols + [label]]
 
-    print(l2_train_data.shape, l2_test_data.shape)
+    logger.debug(f"{l2_train_data.shape}, {l2_test_data.shape}")
     return l2_train_data, l2_test_data, label
 
 
@@ -72,7 +77,7 @@ def _check_stacked_overfitting_from_leaderboard(leaderboard):
 
 
 def inspect_leaderboard(leaderboard, final_model_name):
-    print("### Leaderboard Summary")
+    logger.debug("### Leaderboard Summary")
 
     stacked_overfitting, score_l1_oof, score_l2_oof, score_l1_test, score_l2_test = _check_stacked_overfitting_from_leaderboard(leaderboard)
 
@@ -81,14 +86,14 @@ def inspect_leaderboard(leaderboard, final_model_name):
     final_test_score = leaderboard.loc[leaderboard["model"] == final_model_name, "score_test"].iloc[0]
     val_best_model = leaderboard.sort_values(by="score_val", ascending=False).iloc[0].loc["model"]
 
-    print(f"L1 OOF: \t {score_l1_oof:.5f} | L1 Test: \t {score_l1_test:.5f}")
-    print(f"L2 OOF: \t {score_l2_oof:.5f} | L2 Test: \t {score_l2_test:.5f}")
-    print(f"Final Val: \t {final_val_score:.5f} | Final Test: \t {final_test_score:.5f}")
+    logger.debug(f"L1 OOF: \t {score_l1_oof:.5f} | L1 Test: \t {score_l1_test:.5f}")
+    logger.debug(f"L2 OOF: \t {score_l2_oof:.5f} | L2 Test: \t {score_l2_test:.5f}")
+    logger.debug(f"Final Val: \t {final_val_score:.5f} | Final Test: \t {final_test_score:.5f}")
 
     # Check whether we selected the best model from all trained models
     final_is_best = final_test_score >= leaderboard["score_test"].max()
 
-    print(f"Stacked Overfitting: {stacked_overfitting} | Final Model is Best: {final_is_best}")
+    logger.debug(f"Stacked Overfitting: {stacked_overfitting} | Final Model is Best: {final_is_best}")
 
     return dict(
         SO=stacked_overfitting,
@@ -100,23 +105,23 @@ def inspect_leaderboard(leaderboard, final_model_name):
 
 
 def print_and_get_leaderboard(predictor, l2_test_data, method_name, corrected_val_scores):
-    print("### Results for", method_name)
+    logger.debug("### Results for", method_name)
     leaderboard = predictor.leaderboard(l2_test_data, silent=True)[["model", "score_test", "score_val"]].sort_values(by="model").reset_index(drop=True)
     if corrected_val_scores is not None:
         leaderboard = leaderboard.merge(corrected_val_scores.rename({"score_test": "unbiased_score_val"}, axis=1), on="model")
 
     with pd.option_context("display.max_rows", None, "display.max_columns", None, "display.width", 1000):
-        print(leaderboard.sort_values(by="score_val", ascending=False))
+        logger.debug(leaderboard.sort_values(by="score_val", ascending=False))
     rmtree(predictor.path)
 
     return leaderboard
 
 
 def inspect_full_results(res_dict, proxy_so_results):
-    print("\n===> Task Results Summary")
+    logger.debug("\n===> Task Results Summary")
     res_df = pd.DataFrame(res_dict["results"]).T
     res_df.index.name = "method_name"
     res_df = res_df.reset_index()
-    print("Proxy Found Stacked Overfitting:", proxy_so_results)
+    logger.debug("Proxy Found Stacked Overfitting:", proxy_so_results)
     with pd.option_context("display.max_rows", None, "display.max_columns", None, "display.width", 1000):
-        print(res_df.sort_values(by="test_score", ascending=False))
+        logger.debug(res_df.sort_values(by="test_score", ascending=False))

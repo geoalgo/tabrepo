@@ -1,18 +1,14 @@
-"""
-* switch to holdout-based solutions & brainstorming
-    * proxy model approach (1 model to exploit that the leak happens and just it as indicator for training stacking or not)
-        * RF L1 (maybe with a lot of trees) or LightGBM L2 with small number of samples per leaf
-        * optimize threshold for flip protection on holdout
-"""
-
 from shutil import rmtree
 
-import pandas as pd
 from sklearn.model_selection import train_test_split
 
 from autogluon.tabular import TabularPredictor
 from scripts.leakage_benchmark.src.holdout_based_solutions.ag_test_utils import \
     _check_stacked_overfitting_from_leaderboard
+from scripts.leakage_benchmark.src.holdout_based_solutions.logger import \
+    get_logger
+
+logger = get_logger()
 
 
 def _verify_stacking_settings(use_stacking, fit_para):
@@ -26,16 +22,16 @@ def _verify_stacking_settings(use_stacking, fit_para):
     return fit_para
 
 
-def default(train_data, label, fit_para, predictor_para, holdout_seed=None, use_stacking=True):
+def default(train_data, label, fit_para, predictor_para, holdout_seed=None, use_stacking=True, extra_name=""):
     # Default AutoGluon w/o any changes
-    method_name = "default"
+    method_name = "default" + extra_name
 
     if use_stacking:
         method_name += "_stacking"
     else:
         method_name += "_no_stacking"
 
-    print("Start running AutoGluon on data:", method_name)
+    logger.debug("Start running AutoGluon on data:", method_name)
     predictor = TabularPredictor(**predictor_para)
     fit_para = _verify_stacking_settings(use_stacking, fit_para)
     predictor.fit(train_data=train_data, **fit_para)
@@ -43,8 +39,9 @@ def default(train_data, label, fit_para, predictor_para, holdout_seed=None, use_
     return predictor, method_name, None
 
 
-def use_holdout(train_data, label, fit_para, predictor_para, refit_autogluon=False, select_on_holdout=False, dynamic_stacking=False, ges_holdout=False,
-                holdout_seed=42):
+def use_holdout(
+    train_data, label, fit_para, predictor_para, refit_autogluon=False, select_on_holdout=False, dynamic_stacking=False, ges_holdout=False, holdout_seed=42
+):
     """A function to run different configurations of AutoGluon with a holdout set to avoid stacked overfitting.
 
 
@@ -83,7 +80,7 @@ def use_holdout(train_data, label, fit_para, predictor_para, refit_autogluon=Fal
         train_data, test_size=1 / 9, random_state=holdout_seed, stratify=train_data[label] if classification_problem else None
     )
 
-    print("Start running AutoGluon on data:", method_name)
+    logger.debug("Start running AutoGluon on data:", method_name)
     predictor = TabularPredictor(**predictor_para)
     predictor.fit(train_data=inner_train_data, **fit_para)
 
@@ -91,7 +88,7 @@ def use_holdout(train_data, label, fit_para, predictor_para, refit_autogluon=Fal
     val_leaderboard = predictor.leaderboard(outer_val_data, silent=True).reset_index(drop=True)
     best_model_on_holdout = val_leaderboard.loc[val_leaderboard["score_test"].idxmax(), "model"]
     stacked_overfitting, *_ = _check_stacked_overfitting_from_leaderboard(val_leaderboard)
-    print("Stacked overfitting in this run:", stacked_overfitting)
+    logger.debug("Stacked overfitting in this run:", stacked_overfitting)
 
     if ges_holdout:
         # Obtain best GES weights on holdout data

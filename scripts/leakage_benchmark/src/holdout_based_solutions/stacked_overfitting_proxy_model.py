@@ -1,4 +1,3 @@
-import logging
 from shutil import rmtree
 
 import pandas as pd
@@ -7,8 +6,11 @@ from sklearn.model_selection import train_test_split
 from autogluon.tabular import TabularPredictor
 from scripts.leakage_benchmark.src.holdout_based_solutions.ag_test_utils import \
     _check_stacked_overfitting_from_leaderboard
+from scripts.leakage_benchmark.src.holdout_based_solutions.logger import \
+    get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
+
 
 
 def stacked_overfitting_proxy_model(train_data, label, problem_type="binary", split_random_state=42):
@@ -41,7 +43,7 @@ def stacked_overfitting_proxy_model(train_data, label, problem_type="binary", sp
         fit_weighted_ensemble=False,
     )
 
-    logger.debug("Start running Proxy Model on data, RS:", split_random_state)
+    logger.debug(f"Start running Proxy Model on data, RS: {split_random_state}")
     predictor = TabularPredictor(**predictor_para)
     predictor.fit(train_data=inner_train_data, **fit_para)
     val_leaderboard = predictor.leaderboard(outer_val_data, silent=True).reset_index(drop=True)
