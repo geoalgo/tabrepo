@@ -132,3 +132,8 @@
 #     # print(rank_per_instance[fold_mask].mean())
 #     diff.append(abs(avg_rank - rank_per_instance[fold_mask].mean()))
 # print('Avg diff in ranks per fold', np.mean(diff), f"(U: {len(np.unique(rank_per_instance))})")
+
+
+#     print('Duplicates', np.mean(l2_train_data.drop(columns=[label]).duplicated()))
+#     mask = ~l2_train_data.drop(columns=[label]).duplicated()
+#     l2_train_data = l2_train_data[mask]
