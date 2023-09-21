@@ -28,7 +28,7 @@ def _run(task_id, metric):
     for _ in range(5):
         use_stacking_opinions.append(stacked_overfitting_proxy_model(train_data, label, split_random_state=rng.randint(0, 2**32)))
     logger.info(f"Proxy Opinions: {use_stacking_opinions}")
-    proxy_opinion = any(use_stacking_opinions)
+    proxy_no_stacking = any(use_stacking_opinions)
 
     # --- AutoGluon Specification ---
     predictor_para = dict(eval_metric=metric, label=label, verbosity=0, problem_type="binary", learner_kwargs=dict(random_state=0))
@@ -65,16 +65,16 @@ def _run(task_id, metric):
         partial(use_holdout, refit_autogluon=True, dynamic_stacking=True),
         # Determine GES Weights based on holdout, then refit and use these weights for the final predictions.
         partial(use_holdout, refit_autogluon=True, ges_holdout=True),
-        # Poxy-based Stacking or Not default AutoGluon
-        partial(default, use_stacking=proxy_opinion, extra_name="_Proxy"),
     ]:
-        logger.info("\n")
+        logger.debug("\n")
         predictor, method_name, corrected_val_scores = method_func(train_data, label, fit_para, predictor_para, holdout_seed=holdout_seed)
         leaderboard = print_and_get_leaderboard(predictor, test_data, method_name, corrected_val_scores)
         res["leaderboards"][method_name] = leaderboard
         res["results"][method_name] = inspect_leaderboard(leaderboard, predictor.get_model_best())
 
-    inspect_full_results(res, proxy_opinion)
+    res["results"]["default_Proxy"] = res["results"]["default_no_stacking"] if proxy_no_stacking else res["results"]["default_stacking"]
+
+    inspect_full_results(res, proxy_no_stacking)
 
     return res
 

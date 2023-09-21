@@ -22,9 +22,9 @@ def _verify_stacking_settings(use_stacking, fit_para):
     return fit_para
 
 
-def default(train_data, label, fit_para, predictor_para, holdout_seed=None, use_stacking=True, extra_name=""):
+def default(train_data, label, fit_para, predictor_para, holdout_seed=None, use_stacking=True):
     # Default AutoGluon w/o any changes
-    method_name = "default" + extra_name
+    method_name = "default"
 
     if use_stacking:
         method_name += "_stacking"
