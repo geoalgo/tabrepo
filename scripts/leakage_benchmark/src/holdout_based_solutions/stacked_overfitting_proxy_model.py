@@ -12,13 +12,21 @@ from scripts.leakage_benchmark.src.holdout_based_solutions.logger import \
 logger = get_logger()
 
 
-
 def stacked_overfitting_proxy_model(train_data, label, problem_type="binary", split_random_state=42):
     """Approximates whether one should use stacking or not."""
 
     # add duplicates to the code?
 
     classification_problem = problem_type in ["binary", "multiclass"]
+    if problem_type == "binary":
+        metric = "roc_auc"
+    elif problem_type == "multiclass":
+        metric = "log_loss"
+    elif problem_type == "regression":
+        metric = "mse"
+    else:
+        raise ValueError(f"Unsupported Problem Type: {problem_type}")
+
     inner_train_data, outer_val_data = train_test_split(
         train_data, test_size=1 / 9, random_state=split_random_state, stratify=train_data[label] if classification_problem else None
     )
@@ -26,7 +34,7 @@ def stacked_overfitting_proxy_model(train_data, label, problem_type="binary", sp
     # --- Proxy Model Definition ---
     # In essence, the idea is to find a cheap model that can spot the leak quickly with high confidence.
     predictor_para = dict(
-        eval_metric="roc_auc" if classification_problem else "mse",  # FIXME
+        eval_metric=metric,
         label=label,
         verbosity=0,
         problem_type=problem_type,

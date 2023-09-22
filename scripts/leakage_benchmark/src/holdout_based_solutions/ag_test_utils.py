@@ -42,23 +42,36 @@ def sub_sample(l2_train_data, l2_test_data, label, n_max_cols, n_max_train_insta
     return l2_train_data, l2_test_data, label
 
 
-def _check_stacked_overfitting_from_leaderboard(leaderboard):
+def get_best_val_models(leaderboard):
+    leaderboard = leaderboard.copy()
     non_leaking = ["WeightedEnsemble_L2", "WeightedEnsemble_BAG_L2"]
     for non_leaker in non_leaking:
         leaderboard["model"] = leaderboard["model"].str.replace(non_leaker, non_leaker.replace("L2", "L1"))
-
     best_l1_model = leaderboard[leaderboard["model"].str.endswith("L1")].sort_values(by="score_val", ascending=False).iloc[0].loc["model"]
+    leaking_models_exist = any(m.endswith("L2") for m in leaderboard["model"])
+
+    if leaking_models_exist:
+        # Get best models per layer
+        best_l2_model = leaderboard[~leaderboard["model"].str.endswith("L1")].sort_values(by="score_val", ascending=False).iloc[0].loc["model"]
+    else:
+        best_l2_model = None
+
+    # -- Revert back
     if best_l1_model in [x.replace("L2", "L1") for x in non_leaking]:
         best_l1_model = best_l1_model.replace("L1", "L2")
     for non_leaker in non_leaking:
         leaderboard["model"] = leaderboard["model"].str.replace(non_leaker.replace("L2", "L1"), non_leaker)
 
+    return best_l1_model, best_l2_model, leaking_models_exist
+
+
+def _check_stacked_overfitting_from_leaderboard(leaderboard):
+    best_l1_model, best_l2_model, leaking_models_exist = get_best_val_models(leaderboard)
+
     score_l1_oof = leaderboard.loc[leaderboard["model"] == best_l1_model, "score_val"].iloc[0]
     score_l1_test = leaderboard.loc[leaderboard["model"] == best_l1_model, "score_test"].iloc[0]
 
-    if any(m.endswith("L2") for m in leaderboard["model"]):
-        # Get best models per layer
-        best_l2_model = leaderboard[~leaderboard["model"].str.endswith("L1")].sort_values(by="score_val", ascending=False).iloc[0].loc["model"]
+    if leaking_models_exist:
         score_l2_oof = leaderboard.loc[leaderboard["model"] == best_l2_model, "score_val"].iloc[0]
         score_l2_test = leaderboard.loc[leaderboard["model"] == best_l2_model, "score_test"].iloc[0]
 
