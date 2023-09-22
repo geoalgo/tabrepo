@@ -31,7 +31,7 @@ def default(train_data, label, fit_para, predictor_para, holdout_seed=None, use_
     else:
         method_name += "_no_stacking"
 
-    logger.debug("Start running AutoGluon on data:", method_name)
+    logger.debug(f"Start running AutoGluon on data: {method_name}")
     predictor = TabularPredictor(**predictor_para)
     fit_para = _verify_stacking_settings(use_stacking, fit_para)
     predictor.fit(train_data=train_data, **fit_para)
@@ -80,7 +80,7 @@ def use_holdout(
         train_data, test_size=1 / 9, random_state=holdout_seed, stratify=train_data[label] if classification_problem else None
     )
 
-    logger.debug("Start running AutoGluon on data:", method_name)
+    logger.debug(f"Start running AutoGluon on data: {method_name}" )
     predictor = TabularPredictor(**predictor_para)
     predictor.fit(train_data=inner_train_data, **fit_para)
 
@@ -88,7 +88,7 @@ def use_holdout(
     val_leaderboard = predictor.leaderboard(outer_val_data, silent=True).reset_index(drop=True)
     best_model_on_holdout = val_leaderboard.loc[val_leaderboard["score_test"].idxmax(), "model"]
     stacked_overfitting, *_ = _check_stacked_overfitting_from_leaderboard(val_leaderboard)
-    logger.debug("Stacked overfitting in this run:", stacked_overfitting)
+    logger.debug(f"Stacked overfitting in this run: {stacked_overfitting}")
 
     if ges_holdout:
         # Obtain best GES weights on holdout data

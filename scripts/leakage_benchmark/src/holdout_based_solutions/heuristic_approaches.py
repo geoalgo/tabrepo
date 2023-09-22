@@ -11,7 +11,7 @@ logger = get_logger()
 def no_holdout(train_data, label, fit_para, predictor_para, **kwargs):
     method_name = "no_holdout_heuristic"
 
-    logger.debug("Start running AutoGluon on data:", method_name)
+    logger.debug(f"Start running AutoGluon on data: {method_name}")
     predictor = TabularPredictor(**predictor_para)
     predictor.fit(train_data=train_data, **fit_para)
 
@@ -50,6 +50,7 @@ def no_holdout(train_data, label, fit_para, predictor_para, **kwargs):
 
     # -- Detect leak and if we think the leak happens set best model to be the L1 model
     if am_score_l2_repo < am_score_l2_true_repo:
+        logger.debug(f"Avoid leak with heuristic!")
         predictor.set_model_best(best_l1_model, save_trainer=True)
 
     return predictor, method_name, None

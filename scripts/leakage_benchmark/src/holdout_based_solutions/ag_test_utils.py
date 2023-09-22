@@ -118,7 +118,7 @@ def inspect_leaderboard(leaderboard, final_model_name):
 
 
 def print_and_get_leaderboard(predictor, l2_test_data, method_name, corrected_val_scores):
-    logger.debug("### Results for", method_name)
+    logger.debug(f"### Results for {method_name}")
     leaderboard = predictor.leaderboard(l2_test_data, silent=True)[["model", "score_test", "score_val"]].sort_values(by="model").reset_index(drop=True)
     if corrected_val_scores is not None:
         leaderboard = leaderboard.merge(corrected_val_scores.rename({"score_test": "unbiased_score_val"}, axis=1), on="model")
