@@ -117,14 +117,37 @@ def inspect_leaderboard(leaderboard, final_model_name):
     )
 
 
+from sklearn.preprocessing import LabelEncoder
+
+
 def print_and_get_leaderboard(predictor, l2_test_data, method_name, corrected_val_scores):
+    l2_test_data = l2_test_data.copy()
+    if hasattr(predictor, 'post_hoc_metric'):
+        l2_test_data[predictor.label] = LabelEncoder().fit_transform(l2_test_data[predictor.label])
+        predictor._learner.eval_metric = predictor.post_hoc_metric
+        leaderboard = predictor.leaderboard(l2_test_data, silent=True)
+    else:
+        leaderboard = predictor.leaderboard(l2_test_data, silent=True)
+    leaderboard = leaderboard[["model", "score_test", "score_val"]].sort_values(by="model").reset_index(
+            drop=True)
     logger.debug(f"### Results for {method_name}")
-    leaderboard = predictor.leaderboard(l2_test_data, silent=True)[["model", "score_test", "score_val"]].sort_values(by="model").reset_index(drop=True)
     if corrected_val_scores is not None:
         leaderboard = leaderboard.merge(corrected_val_scores.rename({"score_test": "unbiased_score_val"}, axis=1), on="model")
 
     with pd.option_context("display.max_rows", None, "display.max_columns", None, "display.width", 1000):
         logger.debug(leaderboard.sort_values(by="score_val", ascending=False))
+
+    # # Verifiy best test score
+    # from autogluon.core.metrics import get_metric
+    # m = get_metric("roc_auc", problem_type="binary")
+    # y_pred_proba = predictor.predict_proba(l2_test_data.drop(columns=predictor.label)).values
+    # if hasattr(predictor, '_to_binary_proba'):
+    #     y_pred_proba = predictor._to_binary_proba(y_pred_proba)
+    # else:
+    #     y_pred_proba = y_pred_proba[:, 1]
+    #
+    # print(f'Sanity Test Score: {m(LabelEncoder().fit_transform(l2_test_data[predictor.label]), y_pred_proba)}')
+
     rmtree(predictor.path)
 
     return leaderboard

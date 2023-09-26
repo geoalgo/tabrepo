@@ -31,17 +31,37 @@ class LeakageBenchmarkConfig:
     def default_l2(self):
         return {
             'GBM': [
-                {'test': False,
-                 'ag_args': {'name_suffix': '_test'},
-                 'ag_args_fit': {'fit_args_test': False},
-                 'ag_args_ensemble': {'ens_args_test': False}  # in bagged ensemble model
+                # {'threshold_norm': True,
+                #  'ag_args': {'name_suffix': '_threshold_norm'},
+                #  },
+                {'stacking_dropout': True, "stacking_dropout_per": 0.5, "test_dropout": True,
+                 'ag_args': {'name_suffix': '_naive_dropout_0.5_test'},
                  },
+                {'stacking_dropout': True, "stacking_dropout_per": 0.5,
+                 'ag_args': {'name_suffix': '_naive_dropout_0.5'},
+                 },
+
+                # {'stacking_dropout': True, "stacking_dropout_per": 0.75,
+                #  'ag_args': {'name_suffix': '_naive_dropout_0.75'},
+                #  },
+                # {'stacking_dropout': True, "stacking_dropout_per": 0.9,
+                #  'ag_args': {'name_suffix': '_naive_dropout_0.9'},
+                #  },
+                # {'stacking_dropout': True, "stacking_dropout_per": 0.5, 'monotone_constraints_for_stack_features': True,
+                #  'ag_args': {'name_suffix': '_naive_dropout_0.5_mc'},
+                #  },
+                # {'boosting': "dart",
+                #     #'test': False,
+                #  'ag_args': {'name_suffix': '_test'},
+                #  'ag_args_fit': {'fit_args_test': False},
+                #  'ag_args_ensemble': {'ens_args_test': False}  # in bagged ensemble model
+                #  },
 
                 {},
                 # {'_model_needs_protection': False},
 
-                # {'monotone_constraints_for_stack_features': True,
-                # 'ag_args': {'name_suffix': '_mc'}},
+                {'monotone_constraints_for_stack_features': True,
+                'ag_args': {'name_suffix': '_mc'}},
                 # {'monotone_constraints_for_stack_features': True, 'label_flip_constraints': True,
                 # 'ag_args': {'name_suffix': '_mc_lfc'}},
                 # {'monotone_constraints_for_stack_features': True, 'stack_feature_interactions_map': True,

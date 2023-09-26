@@ -1,9 +1,10 @@
+import numpy as np
+from functools import partial
+
 from autogluon.core.metrics import get_metric
 from autogluon.tabular import TabularPredictor
-from scripts.leakage_benchmark.src.holdout_based_solutions.ag_test_utils import \
-    get_best_val_models
-from scripts.leakage_benchmark.src.holdout_based_solutions.logger import \
-    get_logger
+from scripts.leakage_benchmark.src.holdout_based_solutions.ag_test_utils import get_best_val_models
+from scripts.leakage_benchmark.src.holdout_based_solutions.logger import get_logger
 
 logger = get_logger()
 
@@ -17,9 +18,11 @@ def no_holdout(train_data, label, fit_para, predictor_para, **kwargs):
 
     problem_type = predictor_para["problem_type"]
     if problem_type in ["binary", "multiclass"]:
-        alt_metric = "roc_auc"
+        alt_metric = "log_loss"
+        pred = partial(predictor.predict_proba, as_multiclass=False)
     else:
         alt_metric = "mse"
+        pred = predictor.predict
 
     # Decide between L1 and L2 model based on heuristic
     leaderboard = predictor.leaderboard(silent=True)
@@ -27,22 +30,19 @@ def no_holdout(train_data, label, fit_para, predictor_para, **kwargs):
     # Determine best l1 and l2 model
     best_l1_model, best_l2_model, leaking_models_exist = get_best_val_models(leaderboard)
     score_l1_oof = leaderboard.loc[leaderboard["model"] == best_l1_model, "score_val"].iloc[0]
-    score_l2_oof = leaderboard.loc[leaderboard["model"] == best_l2_model, "score_val"].iloc[0]
 
-    if (not leaking_models_exist) or (score_l1_oof >= score_l2_oof):
-        return predictor, method_name, None
+    if (not leaking_models_exist) or (score_l1_oof >= leaderboard.loc[leaderboard["model"] == best_l2_model, "score_val"].iloc[0]):
+        return predictor
 
     # -- Obtain reproduction scores
     X = predictor.transform_features(train_data.drop(columns=[label]))
     y = predictor.transform_labels(train_data[label])
 
-    l2_repo_oof = predictor.predict_proba(X, model=best_l2_model, as_multiclass=False, as_reproduction_predictions_args=dict(y=y))
+    l2_repo_oof = pred(X, model=best_l2_model, as_reproduction_predictions_args=dict(y=y))
 
     l1_models = [model_name for model_name in leaderboard["model"] if model_name.endswith("BAG_L1")]
     model_name_to_oof = {model_name: predictor.get_oof_pred_proba(model=model_name, as_multiclass=False) for model_name in l1_models}
-    l2_true_repo_oof = predictor.predict_proba(
-        X, model=best_l2_model, as_multiclass=False, as_reproduction_predictions_args=dict(y=y, model_name_to_oof=model_name_to_oof)
-    )
+    l2_true_repo_oof = pred(X, model=best_l2_model, as_reproduction_predictions_args=dict(y=y, model_name_to_oof=model_name_to_oof))
 
     eval_metric = get_metric(alt_metric, problem_type=problem_type)
     am_score_l2_repo = eval_metric(y, l2_repo_oof)

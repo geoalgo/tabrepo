@@ -137,3 +137,136 @@
 #     print('Duplicates', np.mean(l2_train_data.drop(columns=[label]).duplicated()))
 #     mask = ~l2_train_data.drop(columns=[label]).duplicated()
 #     l2_train_data = l2_train_data[mask]
+
+
+
+# --- to multiclassd stuff
+#
+# from autogluon.core.metrics import get_metric
+# from functools import partial
+#
+# d_roc_auc = get_metric("roc_auc", problem_type="binary")
+#
+#
+# def _to_binary_proba(y_pred_proba, label_map):
+#     sel_proba = [int(k) for k, v in label_map.items() if v == 1]
+#     binary_proba = y_pred_proba[:, sel_proba].sum(axis=1)
+#     return binary_proba
+#
+#
+# def mc_roc_auc(y_train, y_pred_proba, label_map, post_hoc=False):
+#     binary_proba = _to_binary_proba(y_pred_proba, label_map)
+#
+#     if post_hoc:
+#         binary_y_train = y_train
+#     else:
+#         binary_y_train = y_train.map(label_map)
+#
+#     return d_roc_auc(binary_y_train, binary_proba)
+# def to_multiclass(train_data, label, fit_para, predictor_para, **kwargs):
+#     method_name = "to_multiclass"
+#     train_data = train_data.copy()
+#     from autogluon.core.metrics import make_scorer
+#     import pandas as pd
+#     # get new labels
+#     from sklearn.cluster import KMeans
+#     from sklearn.compose import ColumnTransformer, make_column_selector
+#     from sklearn.impute import SimpleImputer
+#     from sklearn.pipeline import Pipeline
+#     from sklearn.preprocessing import OrdinalEncoder, StandardScaler, LabelEncoder
+#
+#     preprocessor = Pipeline(
+#         [
+#             (
+#                 "fix",
+#                 ColumnTransformer(
+#                     transformers=[
+#                         (
+#                             "num",
+#                             SimpleImputer(strategy="constant", fill_value=-1),
+#                             make_column_selector(dtype_exclude=["object", "category"]),
+#                         ),
+#                         (
+#                             "cat",
+#                             Pipeline(
+#                                 steps=[
+#                                     (
+#                                         "encoder",
+#                                         OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1),
+#                                     ),
+#                                     ("imputer", SimpleImputer(strategy="constant", fill_value=-1)),
+#                                 ]
+#                             ),
+#                             make_column_selector(dtype_include=["object", "category"]),
+#                         ),
+#                     ],
+#                     sparse_threshold=0,
+#                 ),
+#             ),
+#             ("scale", StandardScaler()),
+#         ]
+#     )
+#
+#     # _clusterer = KMeans(n_clusters=2)
+#     # cluster_i = _clusterer.fit_predict(preprocessor.fit_transform(train_data.drop(columns=[label])))
+#     rng = np.random.RandomState(24)
+#     # cluster_i = pd.Series(np.full(len(train_data), "-1"))
+#
+#     sel = rng.choice(len(train_data), len(train_data), replace=False)
+#
+#     tmp = pd.Series(np.full(len(train_data), ""))
+#     tmp[sel[:len(train_data)//2]] = f"_1"
+#     tmp[sel[len(train_data)//2:]] = f"_2"
+#     cluster_i = tmp
+#     print(np.unique(cluster_i))
+#
+#     # cluster_i[cluster_i == "-1"] = "-1_0_1"
+#
+#
+#     _labels = LabelEncoder().fit_transform(train_data[label])
+#
+#     new_labels = 'L' + pd.Series(_labels.astype(str))
+#     r_mask = new_labels == 'L0'
+#     new_labels[r_mask] += pd.Series(cluster_i[r_mask].astype(str))
+#     oe = OrdinalEncoder()
+#     new_labels = oe.fit_transform(new_labels.values.reshape(-1, 1))
+#     new_labels = pd.Series(new_labels[:, 0]).astype(int)
+#     print(np.unique(new_labels))
+#
+#     label_map = {int(row[1]): row[0] for _, row in pd.DataFrame([_labels, new_labels]).T.drop_duplicates().iterrows()}
+#
+#     # Map new labels to old labels
+#     train_data[label] = new_labels
+#
+#     # def _transform_labels(X, curr_labels):
+#     #     f_cluster_i = _clusterer.predict(preprocessor.transform(X))
+#     #     f_new_labels = pd.Series(f_cluster_i.astype(str)) + '_' + pd.Series(curr_labels.astype(str))
+#     #     # there might be new labels created here, need to fix this
+#     #     f_new_labels = oe.transform(f_new_labels.values.reshape(-1, 1))
+#     #     f_new_labels = pd.Series(f_new_labels[:, 0]).astype(int)
+#     #     return f_new_labels
+#
+#     ag_roc_auc_scorer = make_scorer(name='roc_auc',
+#                                     score_func=partial(mc_roc_auc,
+#                                                        label_map=label_map),
+#                                     optimum=1,
+#                                     greater_is_better=True,
+#                                     needs_proba=True)
+#
+#     logger.debug(f"Start running AutoGluon on data: {method_name}")
+#     predictor_para = predictor_para.copy()
+#     predictor_para["problem_type"] = "multiclass"
+#     predictor_para["eval_metric"] = ag_roc_auc_scorer
+#     predictor_para["learner_kwargs"]["label_count_threshold"] = 0
+#     predictor = TabularPredictor(**predictor_para)
+#     predictor.fit(train_data=train_data, **fit_para)
+#     predictor.post_hoc_metric = make_scorer(name='roc_auc',
+#                                     score_func=partial(mc_roc_auc,
+#                                                        label_map=label_map, post_hoc=True),
+#                                     optimum=1,
+#                                     greater_is_better=True,
+#                                     needs_proba=True)
+#     predictor._to_binary_proba = partial(_to_binary_proba, label_map=label_map)
+#
+#     return predictor, method_name, None
+#
