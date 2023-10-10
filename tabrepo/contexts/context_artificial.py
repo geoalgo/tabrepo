@@ -1,8 +1,8 @@
 import pandas as pd
 import numpy as np
 
-from autogluon_zeroshot.simulation.simulation_context import ZeroshotSimulatorContext
-from autogluon_zeroshot.simulation.tabular_predictions import TabularPicklePredictions
+from tabrepo.simulation.simulation_context import ZeroshotSimulatorContext
+from tabrepo.simulation.tabular_predictions import TabularPicklePredictions
 
 np.random.seed(0)
 
@@ -30,7 +30,18 @@ def load_context_artificial(**kwargs):
     baselines = ["b1", "b2"]
 
     configs_full = {model: {} for model in models}
-
+    """
+    For all csv/dataframe:
+         "framework": baseline,
+         "fold": fold,
+         "tid": dataset_id,
+         "time_infer_s", 
+         ... # and other metrics such as "metric_error", ...
+    Requires:
+    * df_results_by_dataset: drops "dataset", "problem_type"
+    * df_results_by_dataset_automl: drops "dataset", "problem_type"
+    * df_raw:  drops "dataset", "problem_type", "tid_new", rename "model" with "framework"
+    """
     df_metadata = pd.DataFrame([{
         'tid': dataset_id,
         'name': dataset_name,
