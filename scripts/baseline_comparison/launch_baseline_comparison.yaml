@@ -1,0 +1,61 @@
+name: method-comparison
+
+resources:
+  cloud: aws
+  region: us-east-1
+  instance_type: m6i.16xlarge
+  disk_size: 2000  # 2TB should be fine
+# Assume being launched from zeroshot folder directory with `sky launch scripts/baseline_comparison/launch_baseline_comparison.yaml`
+workdir: .
+
+file_mounts:
+  # alternatively:
+  #  aws s3 sync s3://automl-benchmark-ag/aggregated/ec2/2023_08_21/model_predictions /home/ubuntu/sky_workdir/data/results/2023_08_21/model_predictions
+  # Download from S3 to the cluster.
+#  /home/ubuntu/sky_workdir/data/results/2023_08_21/zeroshot_metadata: s3://automl-benchmark-ag/aggregated/ec2/2023_08_21/zeroshot_metadata
+  /home/ubuntu/sky_workdir/data/results/2023_08_21/evaluation/compare/results_ranked_by_dataset_valid.csv: s3://automl-benchmark-ag/aggregated/ec2/2023_08_21/evaluation/compare/results_ranked_by_dataset_valid.csv
+  /home/ubuntu/sky_workdir/data/results/2023_08_21/evaluation/configs/results_ranked_by_dataset_all.csv: s3://automl-benchmark-ag/aggregated/ec2/2023_08_21/evaluation/configs/results_ranked_by_dataset_all.csv
+  /home/ubuntu/sky_workdir/data/results/2023_08_21/leaderboard_preprocessed_configs.csv: s3://automl-benchmark-ag/aggregated/ec2/2023_08_21/leaderboard_preprocessed_configs.csv
+#  /home/ubuntu/sky_workdir/data/results/2023_08_21/model_predictions: s3://automl-benchmark-ag/aggregated/ec2/2023_08_21/model_predictions
+setup: |
+  conda create --name env python=3.10.6 -y 
+  conda activate env
+
+  # needs to remove /home/ubuntu/.local/bin from path otherwise, it gets the wrong pip
+  export PATH=`echo $PATH | tr ":" "\n" | grep -v "/home/ubuntu/.local/bin" | tr "\n" ":"`
+
+  # aws s3 sync s3://automl-benchmark-ag/aggregated/ec2/2023_08_21/model_predictions /home/ubuntu/sky_workdir/data/results/2023_08_21/model_predictions
+  
+  # s5cmd is much faster than aws s3 sync (in this case it takes ~5 min to download versus ~20 min with aws s3 sync)
+  conda config --add channels conda-forge
+  conda config --set channel_priority strict
+  conda install s5cmd -y         
+  # time s5cmd cp --show-progress --include "*" --exclude "*" s3://automl-benchmark-ag/aggregated/ec2/2023_08_21/model_predictions/* /home/ubuntu/sky_workdir/data/results/2023_08_21/model_predictions
+  
+  # download 200 smallest datasets
+  bash scripts/baseline_comparison/download_files.sh
+    
+  which pip  
+  pip install "syne-tune[core]"    
+
+  #  compile metric file
+  pushd tabrepo/metrics/_roc_auc_cpp/
+  bash compile.sh
+  popd
+
+  # Install AG benchmark
+  git clone https://github.com/Innixma/autogluon-benchmark.git
+  pushd autogluon-benchmark
+  pip install -e .
+  popd
+         
+  # Install repo
+  pip install autorank
+  pip install seaborn         
+  pip install -e .
+
+run: |   
+  conda activate env
+  which python
+  python -c "from autogluon.core.metrics import get_metric"
+  PYTHONPATH=.:autogluon python scripts/baseline_comparison/evaluate_baselines.py --expname v1
