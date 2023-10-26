@@ -1,17 +1,17 @@
 import ast
 import copy
 import itertools
+from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 import numpy as np
-from dataclasses import dataclass
-
 from syne_tune.experiments import load_experiments_df
 from tqdm import tqdm
 
 from autogluon_zeroshot.portfolio.zeroshot_selection import zeroshot_configs
 from autogluon_zeroshot.repository import EvaluationRepository
-from autogluon_zeroshot.repository.time_utils import filter_configs_by_runtime, sort_by_runtime, get_runtime
+from autogluon_zeroshot.repository.time_utils import (
+    filter_configs_by_runtime, get_runtime, sort_by_runtime)
 from autogluon_zeroshot.utils.parallel_for import parallel_for
 
 default_ensemble_size = 20

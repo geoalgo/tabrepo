@@ -1,5 +1,5 @@
-import seaborn as sns
 import matplotlib.pyplot as plt
+import seaborn as sns
 from matplotlib.cbook import boxplot_stats
 from matplotlib.lines import Line2D
 

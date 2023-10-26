@@ -1,6 +1,9 @@
-import pandas as pd
 import numpy as np
-from scripts.leakage_benchmark.src.holdout_based_solutions.ag_test_utils import get_best_val_models
+import pandas as pd
+
+from scripts.leakage_benchmark.src.holdout_based_solutions.ag_test_utils import \
+    get_best_val_models
+
 
 def loss_per_sample(y_true, y_pred):
     from sklearn.preprocessing import LabelBinarizer
@@ -49,8 +52,8 @@ def tuner_tests(leaderboard, predictor, train_data, test_data):
     t = pd.concat([test_proba_no_leak, test_proba_leak, test_data[label], pd.Series(abs(test_loss_ps_leak - test_loss_ps_no_leak), name='L1-L2-Diff', index=test_data.index)], axis=1)
 
 
-    from sklearn.isotonic import  IsotonicRegression
-    
+    from sklearn.isotonic import IsotonicRegression
+
     # for F in
     IsotonicRegression(y_min=0, y_max=1, increasing=True, out_of_bounds='clip').fit()
     print()

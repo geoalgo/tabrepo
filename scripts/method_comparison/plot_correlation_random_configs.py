@@ -1,8 +1,8 @@
 """
 Plot correlation between train/test error, requires to run evaluate_random_configs.py before to generate evaluations.
 """
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn
 

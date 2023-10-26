@@ -1,7 +1,7 @@
-from autogluon_zeroshot.simulation.single_best_config_scorer import SingleBestConfigScorer
 from autogluon_zeroshot.contexts import get_context
 from autogluon_zeroshot.simulation.sim_runner import run_zs_simulation_debug
-
+from autogluon_zeroshot.simulation.single_best_config_scorer import \
+    SingleBestConfigScorer
 
 if __name__ == '__main__':
     # context_name = 'BAG_D244_F10_C608_FULL'

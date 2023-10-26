@@ -1,7 +1,7 @@
 from shutil import rmtree
 
-from sklearn.model_selection import train_test_split
 import pandas as pd
+from sklearn.model_selection import train_test_split
 
 from autogluon.tabular import TabularPredictor
 from scripts.leakage_benchmark.src.holdout_based_solutions.ag_test_utils import \
@@ -111,7 +111,8 @@ def use_holdout(
             weights_level = 3
 
     if dynamic_mitigation and stacked_overfitting:
-        from scripts.leakage_benchmark.src.holdout_based_solutions.tunable_mitigation_approaches import tuner_tests
+        from scripts.leakage_benchmark.src.holdout_based_solutions.tunable_mitigation_approaches import \
+            tuner_tests
         tuner_tests(val_leaderboard, predictor, inner_train_data, outer_val_data)
 
     if dynamic_stacking:

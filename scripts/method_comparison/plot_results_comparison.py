@@ -5,7 +5,6 @@ import pandas as pd
 
 from autogluon_zeroshot.loaders import Paths
 
-
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument(
@@ -27,8 +26,8 @@ if __name__ == '__main__':
 
     print(df_results.groupby("searcher").agg(['mean', 'std'])[['train-score', 'test-score']].to_string(float_format="%.2f"))
     
-    import seaborn
     import matplotlib.pyplot as plt
+    import seaborn
     errors = df_results.loc[:, ['train-score', 'test-score']]
     fig = seaborn.regplot(errors, x='train-score', y='test-score').figure
     # fig.suptitle(f"Correlation between train and test error ({n_splits} splits and {num_folds_fit} folds used to fit)")

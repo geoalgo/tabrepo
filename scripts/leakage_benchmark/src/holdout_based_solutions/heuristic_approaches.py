@@ -1,10 +1,13 @@
-import numpy as np
 from functools import partial
+
+import numpy as np
 
 from autogluon.core.metrics import get_metric
 from autogluon.tabular import TabularPredictor
-from scripts.leakage_benchmark.src.holdout_based_solutions.ag_test_utils import get_best_val_models
-from scripts.leakage_benchmark.src.holdout_based_solutions.logger import get_logger
+from scripts.leakage_benchmark.src.holdout_based_solutions.ag_test_utils import \
+    get_best_val_models
+from scripts.leakage_benchmark.src.holdout_based_solutions.logger import \
+    get_logger
 
 logger = get_logger()
 

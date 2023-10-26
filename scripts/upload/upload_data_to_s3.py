@@ -1,7 +1,6 @@
 from autogluon.common.loaders import load_pd
 from autogluon.common.savers import save_pd
 
-
 # FIXME: Make this less hard-coded
 if __name__ == '__main__':
     local_path_prefix = './data/results/bagged_208/'

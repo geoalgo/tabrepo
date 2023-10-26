@@ -2,7 +2,6 @@ from pathlib import Path
 
 from autogluon.common.loaders import load_json
 
-
 if __name__ == '__main__':
     json_root = Path(__file__).parent.parent / 'data' / 'configs' / 'zeroshot'
 

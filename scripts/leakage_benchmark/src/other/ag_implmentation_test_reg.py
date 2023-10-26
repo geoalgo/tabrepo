@@ -1,9 +1,10 @@
 import numpy as np
 import openml
 import pandas as pd
+import sklearn
+
 from autogluon.tabular import TabularPredictor
 
-import sklearn
 
 def get_data(tid: int, fold: int):
     # Get Task and dataset from OpenML and return split data

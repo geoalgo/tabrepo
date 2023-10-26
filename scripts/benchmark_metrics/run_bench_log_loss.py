@@ -1,11 +1,12 @@
 import numpy as np
+from sklearn.metrics import log_loss as sk_log_loss
 
 from autogluon.core.metrics import log_loss
-from sklearn.metrics import log_loss as sk_log_loss
-from autogluon_zeroshot.metrics._fast_log_loss import \
-    fast_log_loss_end_to_end, fast_log_loss, extract_true_class_prob
-from autogluon_zeroshot.metrics.bench_utils import benchmark_metrics_speed, print_benchmark_result,\
-    get_eval_speed, generate_y_true_and_y_pred_proba, generate_y_true_and_y_pred_binary
+from autogluon_zeroshot.metrics._fast_log_loss import (
+    extract_true_class_prob, fast_log_loss, fast_log_loss_end_to_end)
+from autogluon_zeroshot.metrics.bench_utils import (
+    benchmark_metrics_speed, generate_y_true_and_y_pred_binary,
+    generate_y_true_and_y_pred_proba, get_eval_speed, print_benchmark_result)
 
 
 def benchmark_log_loss(num_samples: int, num_classes: int, num_repeats: int, rtol=1e-06, binary_format=False):

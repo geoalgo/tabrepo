@@ -59,10 +59,10 @@ Results for airlines
 7  NeuralNetTorch_c2_FS_BAG_L1    0.725714   0.718532
 
 """
-import pandas as pd
 import openml
-from autogluon.tabular import TabularPredictor
+import pandas as pd
 
+from autogluon.tabular import TabularPredictor
 
 openml_id = 189354 # 361331  # 189354 (airlines)
 

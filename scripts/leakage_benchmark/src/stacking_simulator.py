@@ -203,8 +203,9 @@ def autogluon_l2_runner(
     from sklearn.calibration import _SigmoidCalibration
     from sklearn.isotonic import IsotonicRegression
     from sklearn.metrics import brier_score_loss
-    from .custom_sklearn._bagging import BaggingRegressor
     from sklearn.model_selection import cross_val_score
+
+    from .custom_sklearn._bagging import BaggingRegressor
 
     ignore_feature_duplicates = oof_col_names + [label]
     # mask = ~l2_train_data.drop(columns=ignore_feature_duplicates).duplicated()
@@ -213,6 +214,7 @@ def autogluon_l2_runner(
 
 
     from cir_model import CenteredIsotonicRegression
+
     # Run AutoGluon
     leaderboard_leak = None
     for cal_method in [

@@ -1,11 +1,10 @@
+import logging
 from collections import Counter
 from typing import List
-import logging
 
 import numpy as np
-
-from sklearn.utils import check_random_state
 from sklearn.metrics import roc_auc_score
+from sklearn.utils import check_random_state
 
 logger = logging.getLogger(__name__)
 

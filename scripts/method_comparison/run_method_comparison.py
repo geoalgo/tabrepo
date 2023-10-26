@@ -31,29 +31,31 @@ logging.basicConfig(
 print(f"log can be found at {Path(__file__).parent}/log.txt")
 
 
+import random
 import string
 from argparse import ArgumentParser
 from dataclasses import dataclass
-import random
 from typing import List
 
 import numpy as np
-
 import pandas as pd
 from sklearn.model_selection import KFold
-from syne_tune import Tuner, StoppingCriterion
+from syne_tune import StoppingCriterion, Tuner
 from syne_tune.backend import LocalBackend
 from syne_tune.experiments import load_experiment
 
 from autogluon_zeroshot.contexts import get_context
 from autogluon_zeroshot.loaders import Paths
-from autogluon_zeroshot.simulation.config_generator import ZeroshotConfigGenerator
-from autogluon_zeroshot.simulation.ensemble_selection_config_scorer import EnsembleSelectionConfigScorer
-from autogluon_zeroshot.simulation.single_best_config_scorer import SingleBestConfigScorer
-from autogluon_zeroshot.simulation.synetune_wrapper.synetune_search import RandomSearch, LocalSearch
+from autogluon_zeroshot.simulation.config_generator import \
+    ZeroshotConfigGenerator
+from autogluon_zeroshot.simulation.ensemble_selection_config_scorer import \
+    EnsembleSelectionConfigScorer
+from autogluon_zeroshot.simulation.single_best_config_scorer import \
+    SingleBestConfigScorer
+from autogluon_zeroshot.simulation.synetune_wrapper.synetune_search import (
+    LocalSearch, RandomSearch)
 from autogluon_zeroshot.utils import catchtime
 from scripts.method_comparison.evaluate_ensemble import evaluate_ensemble
-
 
 
 def compute_zeroshot(

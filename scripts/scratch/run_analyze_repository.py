@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from typing import List
 
-from autogluon_zeroshot.utils.cache import cache_function
-from autogluon_zeroshot.repository import EvaluationRepository, EvaluationRepositoryZeroshot
 from autogluon.core.metrics import get_metric
+from autogluon_zeroshot.repository import (EvaluationRepository,
+                                           EvaluationRepositoryZeroshot)
+from autogluon_zeroshot.utils.cache import cache_function
 
 
 def analyze(repo: EvaluationRepositoryZeroshot, models: List[str] | None = None):

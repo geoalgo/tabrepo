@@ -1,6 +1,5 @@
 from autogluon_zeroshot.contexts import get_context
 
-
 if __name__ == '__main__':
     context_name = 'BAG_D244_F10_C608_FULL'  # The context you want to download
     dry_run = True  # Set False to download files

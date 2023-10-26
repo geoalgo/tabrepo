@@ -1,15 +1,19 @@
-import json
-from pathlib import Path
 import glob
+import json
 import pathlib
 import pickle
+from pathlib import Path
 
 import numpy as np
 import openml
 import pandas as pd
 from scipy.stats import wilcoxon
-from scripts.leakage_benchmark.src.interpret_results.plotting.cd_plot import cd_evaluation
-from scripts.leakage_benchmark.src.interpret_results.bench_results import leak_inspector
+
+from scripts.leakage_benchmark.src.interpret_results.bench_results import \
+    leak_inspector
+from scripts.leakage_benchmark.src.interpret_results.plotting.cd_plot import \
+    cd_evaluation
+
 res = pd.read_csv("./input_data/results_preprocessed.csv")
 lb = pd.read_csv("./input_data/leaderboard_preprocessed.csv")
 lb_n = pd.read_csv("./input_data/leaderboard_preprocessed2023_09_28_purucker.csv")

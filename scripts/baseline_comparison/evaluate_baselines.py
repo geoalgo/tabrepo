@@ -1,20 +1,24 @@
-from typing import List, Callable
-import seaborn as sns
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable, List
+
 import matplotlib.pyplot as plt
 import pandas as pd
-from pathlib import Path
-
+import seaborn as sns
 from matplotlib import cm
 
 from autogluon_zeroshot.repository.evaluation_repository import load
-from autogluon_zeroshot.utils.cache import cache_function, cache_function_dataframe
-from scripts.baseline_comparison.baselines import automl_results, framework_default_results, \
-    framework_best_results, zeroshot_results, zeroshot_name, ResultRow
-from scripts.baseline_comparison.plot_utils import MethodStyle, show_latex_table, show_cdf, \
-    show_scatter_performance_vs_time
+from autogluon_zeroshot.utils.cache import (cache_function,
+                                            cache_function_dataframe)
 from autogluon_zeroshot.utils.normalized_scorer import NormalizedScorer
 from autogluon_zeroshot.utils.rank_utils import RankScorer
-from dataclasses import dataclass
+from scripts.baseline_comparison.baselines import (ResultRow, automl_results,
+                                                   framework_best_results,
+                                                   framework_default_results,
+                                                   zeroshot_name,
+                                                   zeroshot_results)
+from scripts.baseline_comparison.plot_utils import (
+    MethodStyle, show_cdf, show_latex_table, show_scatter_performance_vs_time)
 
 
 @dataclass
