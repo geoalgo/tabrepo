@@ -13,11 +13,12 @@ from scripts.leakage_benchmark.src.stacking_simulator import (
 def _leakage_analysis(repo, lbc, dataset, fold) -> LeakageBenchmarkFoldResults:
     print(f'Leakage Analysis for {dataset}, fold {fold}...')
     # L1
-    l2_X_train, y_train, l2_X_test, y_test, eval_metric, oof_col_names, l1_results, l1_feature_metadata = \
+    l2_X_train, y_train, l2_X_test, y_test, eval_metric, oof_col_names,classes, l1_results, l1_feature_metadata = \
         obtain_input_data_for_l2(repo, lbc.l1_models, dataset, fold)
     # L2
     l2_results, custom_meta_data = autogluon_l2_runner(lbc.l2_models, l2_X_train, y_train, l2_X_test, y_test,
                                                        eval_metric, oof_col_names, l1_feature_metadata,
+                                                       classes=classes,
                                                        problem_type=eval_metric.problem_type,
                                                        get_meta_data=lbc.compute_meta_data,
                                                        debug=lbc.debug_mode,
@@ -47,7 +48,7 @@ def _dataset_subset_filter(repo):
     for dataset in repo.dataset_names():
         md = repo.dataset_metadata(repo.dataset_to_tid(dataset))
 
-        if md['NumberOfClasses'] == 2:
+        if (md['NumberOfClasses'] > 2) and (md['NumberOfClasses'] < 20) and (md['NumberOfInstances'] < 10000) and (md['NumberOfFeatures'] < 50):
             dataset_subset.append(dataset)
 
     return dataset_subset
@@ -83,12 +84,15 @@ def analyze_starter(repo: EvaluationRepositoryZeroshot, lbc: LeakageBenchmarkCon
 
 
 if __name__ == '__main__':
-    known_leaking_binary = ['blood-transfusion-service-center', 'GAMETES_Epistasis_3-Way_20atts_0_2H_EDM-1_1',  'kc2',
-                            'meta', 'Satellite', 'Click_prediction_small',
+    known_leaking_binary = ['meta','blood-transfusion-service-center', 'GAMETES_Epistasis_3-Way_20atts_0_2H_EDM-1_1',  'kc2',
+                             'Satellite', 'Click_prediction_small',
                             'Titanic', 'eeg-eye-state', 'GAMETES_Epistasis_2-Way_1000atts_0_4H_EDM-1_EDM-1_1',
                             'APSFailure', 'numerai28_6',
                             'kc1', 'pc3', 'pc4', 'airlines', ]
-    quick_leak = ['Titanic', 'blood-transfusion-service-center']
+    quick_leak_binary = ['Titanic', 'blood-transfusion-service-center', "credit-g"]
+
+    leak_mc = ['wine-quality-red', 'cardiotocography', 'analcatdata_dmft', 'pendigits', 'dna', 'artificial-characters', 'GTSRB-HOG03', 'GTSRB-HOG01']
+
     # Download repository from S3 and cache it locally for re-use in future calls
     repository: EvaluationRepositoryZeroshot = cache_function(
         fun=lambda: EvaluationRepository.load('s3://autogluon-zeroshot/repository/BAG_D244_F1_C16_micro.pkl'),
@@ -96,6 +100,6 @@ if __name__ == '__main__':
     ).to_zeroshot()
     init_lbc = LeakageBenchmarkConfig(
         l1_models=None,
-        datasets=quick_leak  # known_leaking_binary # _dataset_subset_filter(repository) #repository.dataset_names()
+        datasets=known_leaking_binary # leak_mc # _dataset_subset_filter(repository) # _dataset_subset_filter(repository) #repository.dataset_names()
     )
     analyze_starter(repo=repository, lbc=init_lbc)

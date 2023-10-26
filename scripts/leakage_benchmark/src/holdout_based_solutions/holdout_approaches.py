@@ -1,6 +1,7 @@
 from shutil import rmtree
 
 from sklearn.model_selection import train_test_split
+import pandas as pd
 
 from autogluon.tabular import TabularPredictor
 from scripts.leakage_benchmark.src.holdout_based_solutions.ag_test_utils import \
@@ -40,7 +41,7 @@ def default(train_data, label, fit_para, predictor_para, holdout_seed=None, use_
 
 
 def use_holdout(
-    train_data, label, fit_para, predictor_para, refit_autogluon=False, select_on_holdout=False, dynamic_stacking=False, ges_holdout=False, holdout_seed=42
+    train_data, label, fit_para, predictor_para, refit_autogluon=False, select_on_holdout=False, dynamic_stacking=False, ges_holdout=False, dynamic_mitigation=False, holdout_seed=42
 ):
     """A function to run different configurations of AutoGluon with a holdout set to avoid stacked overfitting.
 
@@ -88,6 +89,9 @@ def use_holdout(
     val_leaderboard = predictor.leaderboard(outer_val_data, silent=True).reset_index(drop=True)
     best_model_on_holdout = val_leaderboard.loc[val_leaderboard["score_test"].idxmax(), "model"]
     stacked_overfitting, *_ = _check_stacked_overfitting_from_leaderboard(val_leaderboard)
+    with pd.option_context("display.max_rows", None, "display.max_columns", None, "display.width", 1000):
+        logger.info(val_leaderboard.sort_values(by="score_val", ascending=False))
+
     logger.debug(f"Stacked overfitting in this run: {stacked_overfitting}")
 
     if ges_holdout:
@@ -105,6 +109,10 @@ def use_holdout(
         else:
             ho_weights = l2_ges._get_model_weights()
             weights_level = 3
+
+    if dynamic_mitigation and stacked_overfitting:
+        from scripts.leakage_benchmark.src.holdout_based_solutions.tunable_mitigation_approaches import tuner_tests
+        tuner_tests(val_leaderboard, predictor, inner_train_data, outer_val_data)
 
     if dynamic_stacking:
         fit_para = _verify_stacking_settings(use_stacking=not stacked_overfitting, fit_para=fit_para)

@@ -47,18 +47,63 @@ def _get_metadata(tids):
 
     return md_file
 
-def _spot(l1_val, l2_val, l1_repo, l2_repo):
+def _spot(l1_val, l2_val, l2_true_repo, l2_repo):
     leak_spotted = l1_val < l2_val
     leak_spotted = leak_spotted & (
-        (l2_repo < l1_repo)
+        (l2_repo < l2_true_repo)
     )
 
     return leak_spotted
 
+def lc(a, b):
+    # lower is close
+    return (a < b) | c(a,b)
+
+def c(a,b):
+    return  np.isclose(a,b)
+def _spot_2(l1_val, l2_val, am_l1_val, am_l2_val, l1_repo, l2_repo, l2_true_repo,
+            am_l1_repo, am_l2_repo, am_l2_true_repo, l1_repo_old, l2_repo_old, l2_true_repo_old):
+    leak_spotted = (l1_val < l2_val)
+    leak_spotted = leak_spotted & (
+
+    # msr the gap between val and repo and make sure it is similar big/extreme?
+    # (abs(am_l2_repo - am_l2_true_repo) >= (abs(am_l2_true_repo) * 0.1))
+    (am_l2_repo < am_l2_true_repo)
+    # &
+    # (
+    # | (l2_repo_old < l2_true_repo_old)  # fixme need alt metric for this?
+
+    # & ~(c(l1_repo, l2_repo) & c(l2_repo, l2_true_repo))
+
+
+    #& (
+            # lc(l1_repo, l2_true_repo)
+            # & lc(l2_repo, l1_repo)
+            # lc(l2_repo_old, l2_repo)
+            # & lc(l2_true_repo_old, l2_true_repo)
+            # & lc(l1_repo_old, l1_repo)
+    #   )
+
+     # # Overfit edge case
+     # | ((l1_repo < l2_true_repo)
+     #   & (am_l2_true_repo < am_l1_repo))  # overfit edge case
+
+    )
+
+    # -- overfit logic based on small and large diff in val and repo
+    # if_mask = leak_spotted
+    # no_leak = np.isclose(l2_repo_old, l2_true_repo_old, rtol=0.01) & (abs(l1_val - l2_val) >= (l2_val*0.05))
+    # leak_spotted[if_mask] = leak_spotted[if_mask] & (~no_leak[if_mask])
+
+    # False Negatives
+    #   - 2 weird edge case behavior where l2 repo is worst, and l1 repo is best
+    #   - 2 just GES overfitting (minor diff)
+
+    return leak_spotted.astype(bool)
 def _inspect_spotter(in_df, spotter_name):
     print(f"#### For Spotter: {spotter_name}")
-    print("\n## Overall")
-    _score_spotter(in_df['leak'], in_df['leak_spotted'])
+    # print("\n## Overall")
+    # _score_spotter(in_df['leak'], in_df['leak_spotted'])
 
     print("\n## Leak Is Possible At All")
     _score_spotter(in_df.loc[in_df["stacking_has_no_impact"] == False, 'leak'],
@@ -69,21 +114,36 @@ def _inspect_spotter(in_df, spotter_name):
                    in_df.loc[in_df["stacking_is_better"] == True, 'leak_spotted'])
 
 
-with open(f'results_full_alt_metric.pkl', 'rb') as f:
+with open(f'./res_nested_benchmark/res.pkl', 'rb') as f:
     res_dict = pickle.load(f)
 df = pd.DataFrame(res_dict)
 md = _get_metadata(list(df['task_id']))
 md = pd.DataFrame(md).T.dropna(axis=1)
-df = df.merge(md, left_on='task_id', right_index=True, validate='1:1')
+# df = df.merge(md, left_on='task_id', right_index=True, validate='1:1')
 df.to_csv("./res.csv")
 
-print(list(df[(df["leak"] == True) | df["leak_spotted"] == True]['task_id']))
+# print(list(df[(df["leak"] == True) | df["leak_spotted"] == True]['task_id']))
 
 # -- Current spotter
-df['leak_spotted'] = _spot(df['l1_val'], df['l2_val'], df["am_l2_true_repo"], df['am_l2_repo'])
-_inspect_spotter(df, "current_spotter")
+df['leak_spotted'] = _spot(df['l1_val'], df['l2_val'],
+                           df["am_l2_true_repo"], df['am_l2_repo']) # current baseline
 
-# exit()
+
+
+_inspect_spotter(df, "current_spotter")
+print("FN", list(df[df["leak"] & (~df["leak_spotted"])]["task_id"]))
+print("FP", list(df[(~df["leak"]) & (df["leak_spotted"])]["task_id"]))
+
+
+df['leak_spotted'] = _spot_2(df['l1_val'], df['l2_val'], df['am_l1_val'], df['am_l2_val'],
+                                df["l1_repo"], df['l2_repo'], df["l2_true_repo"],
+                             df["am_l1_repo"], df['am_l2_repo'], df["am_l2_true_repo"],
+                             df["l1_repo_old"],df["l2_repo_old"], df["l2_true_repo_old"])
+_inspect_spotter(df, "new_spotter")
+print("FN", list(df[df["leak"] & (~df["leak_spotted"])]["task_id"]))
+print("FP", list(df[(~df["leak"]) & (df["leak_spotted"])]["task_id"]))
+
+exit()
 # df['leak_spotted'] = _spot_tests(df['l1_val'], df['l2_val'], df['l1_repo'], df['l2_repo'])
 # _inspect_spotter(df, "test_spotter")
 
@@ -92,7 +152,7 @@ _inspect_spotter(df, "current_spotter")
 y = df["leak"]
 X = df.drop(columns=["leak", "leak_spotted", "stacking_is_better", "stacking_has_no_impact", "task_id", "l1_test",
                      "l2_test"])
-X = X[["am_l1_repo", "am_l2_true_repo"]]
+# X = X[["am_l1_repo", "am_l2_true_repo"]]
 
 from pysr import PySRRegressor
 from sklearn.ensemble import RandomForestClassifier
@@ -100,11 +160,12 @@ from sklearn.metrics import balanced_accuracy_score
 # - SKlearn
 from sklearn.model_selection import LeaveOneOut, cross_val_predict
 
-rng = 42 # np.random.RandomState(42)
-oof_pred = cross_val_predict(RandomForestClassifier(random_state=rng, verbose=False), X, y,
-                              cv=LeaveOneOut())
-df['leak_spotted'] = oof_pred
-_inspect_spotter(df, "model_fit")
+#
+# rng = 42 # np.random.RandomState(42)
+# oof_pred = cross_val_predict(RandomForestClassifier(random_state=rng, verbose=False), X, y,
+#                               cv=LeaveOneOut())
+# df['leak_spotted'] = oof_pred
+# _inspect_spotter(df, "model_fit")
 
 # exit()
 
@@ -114,7 +175,7 @@ model = PySRRegressor(
     binary_operators=["greater", "logical_and", "logical_or"],
     unary_operators=["neg"],
     complexity_of_constants=100000000000000000,
-    maxsize=20,
+    maxsize=8,
     populations=30,
     annealing=True,
     verbosity=0,

@@ -56,7 +56,9 @@ def _run(task_id, metric, problem_type):
     res = dict(task_id=task_id, results={}, leaderboards={})
     for method_func in [
         # Determine SO based on holdout and refit with or without stacking
-        partial(use_holdout, refit_autogluon=True, dynamic_stacking=True),
+        partial(use_holdout, refit_autogluon=True, dynamic_mitigation=True),
+
+
         # # Select final model based on holdout
         # partial(use_holdout, refit_autogluon=False, select_on_holdout=True),
         # # Select based on holdout and refit
@@ -84,135 +86,24 @@ def _run(task_id, metric, problem_type):
 
 
 if __name__ == "__main__":
-    c_list = []
-    all_tids = [
-        3483,
-        3623,
-        3616,
-        43,
-        3668,
-        3684,
-        3702,
-        3793,
-        3904,
-        3907,
-        3913,
-        9971,
-        167120,
-        168868,
-        189354,
-        190411,
-        359955,
-        359956,
-        359958,
-        359967,
-        359972,
-        359975,
-        359979,
-        359983,
-        359992,
-        361332,
-        361334,
-        361335,
-        361339,
-        37,
-        219,
-        3581,
-        3583,
-        3591,
-        3593,
-        3600,
-        3601,
-        3606,
-        3618,
-        3627,
-        3664,
-        3667,
-        3672,
-        3681,
-        3698,
-        3704,
-        3712,
-        3735,
-        3747,
-        3749,
-        3764,
-        3766,
-        3783,
-        3786,
-        3799,
-        3800,
-        3812,
-        3844,
-        3892,
-        3899,
-        3903,
-        3918,
-        3919,
-        3945,
-        3954,
-        3962,
-        3968,
-        3976,
-        3980,
-        3995,
-        4000,
-        9909,
-        9943,
-        9959,
-        9970,
-        9976,
-        9983,
-        14954,
-        125920,
-        125968,
-        146818,
-        146819,
-        146820,
-        168350,
-        168757,
-        168911,
-        189356,
-        3688,
-        3690,
-        189922,
-        190137,
-        190392,
-        190410,
-        190412,
-        359962,
-        359966,
-        359968,
-        359971,
-        359973,
-        359980,
-        359982,
-        359988,
-        359989,
-        359990,
-        359991,
-        359994,
-        360113,
-        360114,
-        360975,
-        361331,
-        361333,
-        361336,
-        361340,
-        361341,
-        361342,
-    ]
+    # --- Other
+    _run(359983, "roc_auc")
+    _run(146217, "log_loss")
+    _run(359931, "mse")
 
-    import pickle
-
-    for en_idx, test_id in enumerate(all_tids, start=1):
-        logger.info(f"##### Run for {test_id} ({en_idx}/{len(all_tids)})")
-        c_list.append(_run(test_id, "roc_auc", "binary"))
-        #  c_list.append(_run(test_id, "mse", "regression"))
-
-        with open(f"results_curr.pkl", "wb") as f:
-            pickle.dump(c_list, f)
-        logger.info("\n\n")
+    # c_list = []
+    # all_tids = [359955]
+    #
+    # import pickle
+    #
+    # for en_idx, test_id in enumerate(all_tids, start=1):
+    #     logger.info(f"##### Run for {test_id} ({en_idx}/{len(all_tids)})")
+    #     c_list.append(_run(test_id, "roc_auc", "binary"))
+    #     #  c_list.append(_run(test_id, "mse", "regression"))
+    #
+    #     with open(f"results_curr.pkl", "wb") as f:
+    #         pickle.dump(c_list, f)
+    #     logger.info("\n\n")
 
     # --- Other
     # _run(361339, "roc_auc") # titanic (binary); leak visible

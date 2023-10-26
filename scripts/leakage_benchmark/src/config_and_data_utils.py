@@ -31,15 +31,47 @@ class LeakageBenchmarkConfig:
     def default_l2(self):
         return {
             'GBM': [
-                # {'threshold_norm': True,
-                #  'ag_args': {'name_suffix': '_threshold_norm'},
+                # {'ir': True, 'ir_p': True, 'ir_p_val': 'full',
+                #  'ag_args': {'name_suffix': '_ir_p_vp-full'},
                 #  },
-                {'stacking_dropout': True, "stacking_dropout_per": 0.5, "test_dropout": True,
-                 'ag_args': {'name_suffix': '_naive_dropout_0.5_test'},
-                 },
-                {'stacking_dropout': True, "stacking_dropout_per": 0.5,
-                 'ag_args': {'name_suffix': '_naive_dropout_0.5'},
-                 },
+                # {'ir': True, 'ir_p': True, 'ir_p_val': 're',
+                #  'ag_args': {'name_suffix': '_ir_p_vp-re'},
+                #  },
+                # {'ir': True, 'ir_p': True,
+                #  'ag_args': {'name_suffix': '_ir_p'},
+                #  },
+                # {
+                #     "ir": True,
+                #     "ag_args": {"name_suffix": "_ir"},
+                # },
+                # {
+                #     "ir": True,
+                #     "ir_fit_full": True,
+                #     "ag_args": {"name_suffix": "_ir_fit_full"},
+                # },
+                # {
+                #     "ir": True,
+                #     "ir_fit_val": True,
+                #     "ag_args": {"name_suffix": "_ir_fit_val"},
+                # },
+                # {
+                #     "ir": True, "ir_bounds": False,
+                #     "ag_args": {"name_suffix": "_ir_bounds"},
+                # },
+
+                # {'ir': True, 'test_ir': True,
+                #  'ag_args': {'name_suffix': '_ir_test'},
+                #  },
+
+                # {'threshold_norm': True,'_pred_ir': True,
+                #  'ag_args': {'name_suffix': '_cal_p'},
+                #  },
+                # {'stacking_dropout': True, "stacking_dropout_per": 0.5, "test_dropout": True,
+                #  'ag_args': {'name_suffix': '_naive_dropout_0.5_test'},
+                #  },
+                # {'stacking_dropout': True, "stacking_dropout_per": 0.5,
+                #  'ag_args': {'name_suffix': '_naive_dropout_0.5'},
+                #  },
 
                 # {'stacking_dropout': True, "stacking_dropout_per": 0.75,
                 #  'ag_args': {'name_suffix': '_naive_dropout_0.75'},
@@ -59,9 +91,9 @@ class LeakageBenchmarkConfig:
 
                 {},
                 # {'_model_needs_protection': False},
-
-                {'monotone_constraints_for_stack_features': True,
-                'ag_args': {'name_suffix': '_mc'}},
+                #
+                # {'monotone_constraints_for_stack_features': True,
+                # 'ag_args': {'name_suffix': '_mc'}},
                 # {'monotone_constraints_for_stack_features': True, 'label_flip_constraints': True,
                 # 'ag_args': {'name_suffix': '_mc_lfc'}},
                 # {'monotone_constraints_for_stack_features': True, 'stack_feature_interactions_map': True,
@@ -85,6 +117,9 @@ class LeakageBenchmarkConfig:
             #     {'monotone_constraints_for_stack_features': True,
             #      'ag_args': {'name_suffix': '_mc'}},
             # ]
+            "FASTAI": [{}],
+            "NN_TORCH": [{}],
+            "RF": [{}],
 
         }
 

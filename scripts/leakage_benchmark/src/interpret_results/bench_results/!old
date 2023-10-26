@@ -12,17 +12,25 @@ from scripts.leakage_benchmark.src.interpret_results.plotting.cd_plot import \
 frameworks = ["AutoGluon_bq_nostack_1h8c_2023_08_28",
               "AutoGluon_bq_stack_1h8c_2023_08_28",
                #"AutoGluon_bq_stack_fix1_1h8c_2023_08_28",
-            "AutoGluon_bq_stack_fix_v2_1h8c_2023_08_28",
+                # "AutoGluon_bq_stack_fix_v2_1h8c_2023_08_28",
+              "AG_ho_dynamic_stacking_1h8c_2023_09_22_infoleak",
+              "AG_heuristic_1h8c_2023_09_22_infoleak"
               ]
-problem_types = ["binary"] # ["binary", "multiclass", "regression"]
+problem_types = ["binary"] #
 #datasets = ['rmftsa_ladata', 'blood-transfusion-service-center', 'meta', 'Satellite', 'ilpd', 'jm1', 'Click_prediction_small', 'Titanic', 'ada', 'kdd_el_nino-small', 'numerai28_6', 'GAMETES_Epistasis_3-Way_20atts_0_2H_EDM-1_1', 'eeg-eye-state', 'GAMETES_Epistasis_2-Way_1000atts_0_4H_EDM-1_EDM-1_1', 'madelon', 'mammography', 'airlines', 'APSFailure', 'credit-g', 'kc2', 'pc3', 'pc4']
 # ---
 lb = pd.read_csv("./leaderboard_preprocessed.csv")
 res = pd.read_csv("./results_preprocessed.csv")
 
+lb_n = pd.read_csv("./leaderboard_preprocessed_new.csv")
+res_n = pd.read_csv("./results_preprocessed_new.csv")
+
+lb = pd.concat([lb, lb_n])
+res = pd.concat([res, res_n])
+
 lb = lb[lb["problem_type"].isin(problem_types)]
-lb = lb[lb["framework_parent"].isin(["AutoGluon_bq_nostack_1h8c", "AutoGluon_bq_stack_1h8c", "AutoGluon_bq_stack_fix1_1h8c",
-                                     "AutoGluon_bq_stack_fix_v2_1h8c"])]
+# lb = lb[lb["framework_parent"].isin(["AutoGluon_bq_nostack_1h8c", "AutoGluon_bq_stack_1h8c", "AutoGluon_bq_stack_fix1_1h8c",
+#                                      "AutoGluon_bq_stack_fix_v2_1h8c"])]
 
 
 def _get_metadata(tids):
@@ -79,9 +87,9 @@ custom_md = _process_custom_fold_results()
 md_map = _get_metadata(res["tid"].unique().astype(int))
 
 res = res[res["problem_type"].isin(problem_types)]
-res = res[res["framework"].isin(frameworks)]
+# res = res[res["framework"].isin(frameworks)]
 #print(len(datasets))
-#res = res[~res['dataset'].isin(datasets)]
+# res = res[~res['dataset'].isin(datasets)]
 # Avg over folds
 res = res.groupby(by=["dataset", "fold", "framework"]).mean().reset_index().drop(columns=["fold"])
 lb = lb.groupby(by=["dataset", "fold", "framework", "model", "framework_parent", 'stack_level']).mean().reset_index().drop(columns=["fold"])
@@ -89,7 +97,7 @@ lb = lb.groupby(by=["dataset", "fold", "framework", "model", "framework_parent",
 # ------- Leak analysis
 print()
 # select for stack
-lb_info_leak = lb[lb["framework_parent"].isin(["AutoGluon_bq_stack_1h8c"])]
+lb_info_leak = lb[lb["framework_parent"].isin(["AG_ho_dynamic_stacking_1h8c"])]
 # ignore weighted ensembles
 lb_info_leak = lb_info_leak[~lb_info_leak['model'].isin(['WeightedEnsemble_L2', 'WeightedEnsemble_L3', 'autogluon_ensemble',
                                                          'autogluon_single', 'WeightedEnsemble_BAG_L2'])]
@@ -115,14 +123,14 @@ leak_l2_error['metric_error'] += EPS
 equal_mask = (leak_l2_error - leak_l1_error) == 0
 
 test_score_loss_by_leak = (leak_l2_error - leak_l1_error)/leak_l2_error
-print(leak_datasets)
-print(list(np.unique(res[res['dataset'].isin(leak_datasets)]['tid']).astype(int)))
-print(list(np.unique(res[~res['dataset'].isin(leak_datasets)]['tid']).astype(int)))
-
-exit()
-print(f'Leak here: {len(test_score_loss_by_leak)}/{len(set(res.dataset))} ({len(test_score_loss_by_leak)/len(set(res.dataset))})')
-print('The leak increases the error by:')
-print(test_score_loss_by_leak.describe())
+print(leak_datasets, len(leak_datasets))
+# print(list(np.unique(res[res['dataset'].isin(leak_datasets)]['tid']).astype(int)))
+# print(list(np.unique(res[~res['dataset'].isin(leak_datasets)]['tid']).astype(int)))
+#
+#
+# print(f'Leak here: {len(test_score_loss_by_leak)}/{len(set(res.dataset))} ({len(test_score_loss_by_leak)/len(set(res.dataset))})')
+# print('The leak increases the error by:')
+# print(test_score_loss_by_leak.describe())
 
 # test_score_loss_by_leak.index = [int(i) for i in test_score_loss_by_leak.index]
 # missing_keys = set(np.unique(res['tid'])).difference(test_score_loss_by_leak.index)
@@ -137,34 +145,33 @@ print(test_score_loss_by_leak.describe())
 #     c_vals = test_score_loss_by_leak['metric_error'].values
 #     print(m_f, pearsonr(vals, c_vals))
 
-leak_datasets
+# leak_datasets
+#
+# lb_compare = lb_info_leak[lb_info_leak.dataset.isin(list(custom_md.keys()))]
+# lb_compare = lb_compare[['dataset', 'stack_level', 'metric_score', 'score_val']]
+# l1_b = lb_compare[lb_compare['stack_level'] == 1].drop(columns=['stack_level']).reset_index(drop=True).set_index('dataset')
+# l2_b = lb_compare[lb_compare['stack_level'] == 2].drop(columns=['stack_level']).reset_index(drop=True).set_index('dataset')
+#
+# l2_overfitting = l2_b['score_val'] - l2_b['metric_score'] # positive value mean we did overfit (val > test), negative value underfit (val < test)
+# diff_to_l1_val = l1_b['score_val'] - l2_b['score_val']
+# diff_to_l1_test = l1_b['metric_score'] - l2_b['metric_score']
+# leak_mask = pd.Series(l1_b.index.isin(leak_datasets))
+# leak_mask.index = l1_b.index
+#
+# leak_score = l1_b['metric_score'].copy()
+# leak_score.iloc[:] = -1
+# rel_index = [x for x in test_score_loss_by_leak.index if x in leak_score.index]
+# leak_score.loc[rel_index] = test_score_loss_by_leak.loc[rel_index, 'metric_error']
+#
+# exp_md = pd.DataFrame({x: val[0]['tdc'] for x, val in custom_md.items()}).T
+# exp_md.columns = ['Val', 'LeakRepo', 'RandomLeakRepo', 'Test', 'AccVal', 'AccTest']
+# exp_md = exp_md.loc[l1_b.index, ['LeakRepo', 'RandomLeakRepo']]
+# res = exp_md['LeakRepo'] - exp_md['RandomLeakRepo']
+#
+# res_df = pd.concat([res, l2_overfitting, diff_to_l1_val, diff_to_l1_test, leak_mask, leak_score], axis=1)
+# res_df.columns=['LeakRepoScore', 'l2_overfitting', 'l1-l2-val', 'l1-l2-test', 'Leak?', 'LeakScore']
+# # res_df['LeakRepoScore'] = abs(res_df['LeakRepoScore'])
 
-lb_compare = lb_info_leak[lb_info_leak.dataset.isin(list(custom_md.keys()))]
-lb_compare = lb_compare[['dataset', 'stack_level', 'metric_score', 'score_val']]
-l1_b = lb_compare[lb_compare['stack_level'] == 1].drop(columns=['stack_level']).reset_index(drop=True).set_index('dataset')
-l2_b = lb_compare[lb_compare['stack_level'] == 2].drop(columns=['stack_level']).reset_index(drop=True).set_index('dataset')
-
-l2_overfitting = l2_b['score_val'] - l2_b['metric_score'] # positive value mean we did overfit (val > test), negative value underfit (val < test)
-diff_to_l1_val = l1_b['score_val'] - l2_b['score_val']
-diff_to_l1_test = l1_b['metric_score'] - l2_b['metric_score']
-leak_mask = pd.Series(l1_b.index.isin(leak_datasets))
-leak_mask.index = l1_b.index
-
-leak_score = l1_b['metric_score'].copy()
-leak_score.iloc[:] = -1
-rel_index = [x for x in test_score_loss_by_leak.index if x in leak_score.index]
-leak_score.loc[rel_index] = test_score_loss_by_leak.loc[rel_index, 'metric_error']
-
-exp_md = pd.DataFrame({x: val[0]['tdc'] for x, val in custom_md.items()}).T
-exp_md.columns = ['Val', 'LeakRepo', 'RandomLeakRepo', 'Test', 'AccVal', 'AccTest']
-exp_md = exp_md.loc[l1_b.index, ['LeakRepo', 'RandomLeakRepo']]
-res = exp_md['LeakRepo'] - exp_md['RandomLeakRepo']
-
-res_df = pd.concat([res, l2_overfitting, diff_to_l1_val, diff_to_l1_test, leak_mask, leak_score], axis=1)
-res_df.columns=['LeakRepoScore', 'l2_overfitting', 'l1-l2-val', 'l1-l2-test', 'Leak?', 'LeakScore']
-# res_df['LeakRepoScore'] = abs(res_df['LeakRepoScore'])
-print()
-exit()
 # ------- Leak analysis  End
 
 
@@ -241,18 +248,18 @@ for metric in ["metric_score"]: # auc , "balacc"
         # -- CD plots
         performance_per_dataset = performance_per_dataset.dropna()
         # performance_per_dataset = performance_per_dataset.round(3)
-        # cd_evaluation(performance_per_dataset, True, None, ignore_non_significance=True,
-        #               plt_title=f"{complexity_name} | {metric} | {len(performance_per_dataset)}")
+        cd_evaluation(performance_per_dataset, True, None, ignore_non_significance=True,
+                      plt_title=f"{complexity_name} | {metric} | {len(performance_per_dataset)}")
 
 
 
-        # only leak
-        print('Leak:', win_rate(performance_per_dataset[performance_per_dataset.index.isin(leak_datasets)][["AutoGluon_bq_stack_1h8c_2023_08_28", "AutoGluon_bq_stack_fix_v2_1h8c_2023_08_28"]]))
-        print(len(leak_datasets))
-
-        # only no leak
-        print('No Leak:', win_rate(performance_per_dataset[~performance_per_dataset.index.isin(leak_datasets)][["AutoGluon_bq_stack_1h8c_2023_08_28", "AutoGluon_bq_stack_fix_v2_1h8c_2023_08_28"]]))
-        print(len(performance_per_dataset) - len(leak_datasets))
+        # # only leak
+        # print('Leak:', win_rate(performance_per_dataset[performance_per_dataset.index.isin(leak_datasets)][["AutoGluon_bq_stack_1h8c_2023_08_28", "AutoGluon_bq_stack_fix_v2_1h8c_2023_08_28"]]))
+        # print(len(leak_datasets))
+        #
+        # # only no leak
+        # print('No Leak:', win_rate(performance_per_dataset[~performance_per_dataset.index.isin(leak_datasets)][["AutoGluon_bq_stack_1h8c_2023_08_28", "AutoGluon_bq_stack_fix_v2_1h8c_2023_08_28"]]))
+        # print(len(performance_per_dataset) - len(leak_datasets))
 
 
         # cd_evaluation(performance_per_dataset[performance_per_dataset.index.isin(leak_datasets)], True, None, ignore_non_significance=True,
@@ -260,3 +267,24 @@ for metric in ["metric_score"]: # auc , "balacc"
         # # only no leak
         # cd_evaluation(performance_per_dataset[~performance_per_dataset.index.isin(leak_datasets)], True, None, ignore_non_significance=True,
         #               plt_title=f"{complexity_name} | {metric} | {len(performance_per_dataset) - len(leak_datasets)} | No Leak")
+
+        def win_rate(in_df, in_model):
+            rank_df = in_df.rank(axis=1, ascending=False)
+            w = sum(rank_df[in_model] == 1)
+            t = sum(rank_df[in_model] == 1.5)
+            l = sum(rank_df[in_model] == 2)
+            return [in_model, (w+0.5*t)/len(rank_df),w,t,l ]
+
+
+        baseline = 'AutoGluon_bq_nostack_1h8c_2023_08_28'
+        res = []
+        for model in list(performance_per_dataset):
+
+            if model == baseline:
+                res.append(("[REFERENCE] " + model, 0.5, 0, len(performance_per_dataset), 0))
+            else:
+                res.append(win_rate(performance_per_dataset[[model, baseline]], model))
+
+        res = pd.DataFrame(res, columns=['model', "ratio", 'win', "tie", "lose"]).sort_values(by='ratio', ascending=False)
+        with pd.option_context("display.max_rows", None, "display.max_columns", None, "display.width", 1000):
+            print(res)
